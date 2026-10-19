@@ -25,8 +25,8 @@ import {
 // ── GET: Meta webhook verification ───────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const mode      = searchParams.get('hub.mode');
-  const token     = searchParams.get('hub.verify_token');
+  const mode = searchParams.get('hub.mode');
+  const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
   if (mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
@@ -363,7 +363,7 @@ async function runEnrollmentMachine(
           }
           break;
         }
-        session.name  = nameOnly;
+        session.name = nameOnly;
         session.state = 'awaiting_screenshot';
         await syncLeadNameIfNew(from, priorContactName, session.name);
         reply = `Perfect, *${session.name}*! 🎉\n\n${buildPaymentMsg()}`;
@@ -379,7 +379,7 @@ async function runEnrollmentMachine(
           session.email = email;
           reply = `Got your email! 😊 Could you share your *full name*?\n\nExample: _John Doe_`;
         } else {
-          session.name  = name;
+          session.name = name;
           session.email = email;
           session.state = 'awaiting_screenshot';
           await syncLeadNameIfNew(from, priorContactName, session.name);
@@ -397,7 +397,7 @@ async function runEnrollmentMachine(
             reply = `Please share your *full name* and *email address* to continue.\n\nExample: _John Doe, johndoe@gmail.com_`;
           }
         } else {
-          session.name  = name;
+          session.name = name;
           session.state = 'collecting_email';
           await syncLeadNameIfNew(from, priorContactName, session.name);
           reply = `Thanks *${session.name}*! 😊 Now please share your *email address*.`;
@@ -459,9 +459,9 @@ async function runEnrollmentMachine(
           webViewLink = driveRes.webViewLink;
 
           rowIndex = await appendEnrollmentRow({
-            name:      session.name || 'Student',
-            email:     session.email || 'unknown@datacrumbs.org',
-            phone:     from,
+            name: session.name || 'Student',
+            email: session.email || 'unknown@datacrumbs.org',
+            phone: from,
             timestamp: ts,
             driveLink: webViewLink,
           });
@@ -470,7 +470,7 @@ async function runEnrollmentMachine(
         }
 
         if (fileId) {
-          session.driveFileId  = fileId;
+          session.driveFileId = fileId;
           session.driveFileUrl = webViewLink;
           mediaUrl = fileId;
         }
@@ -518,7 +518,7 @@ async function runEnrollmentMachine(
         }
 
         if (fileId) {
-          session.driveFileId  = fileId;
+          session.driveFileId = fileId;
           session.driveFileUrl = webViewLink;
           mediaUrl = fileId;
         }
@@ -584,11 +584,11 @@ export async function POST(req: NextRequest) {
       const message = value?.messages?.[0];
       if (!message) return;
 
-      const from      = message.from as string;
-      const msgType   = message.type as string;
-      const text      = msgType === 'text' ? (message.text?.body as string ?? '') : (message.image?.caption ?? message.document?.caption ?? '');
+      const from = message.from as string;
+      const msgType = message.type as string;
+      const text = msgType === 'text' ? (message.text?.body as string ?? '') : (message.image?.caption ?? message.document?.caption ?? '');
       // Accept any document as a potential payment screenshot — don't restrict by MIME/filename
-      const imageId   = message.image?.id ?? message.document?.id;
+      const imageId = message.image?.id ?? message.document?.id;
       const imageMime = message.image?.mime_type ?? message.document?.mime_type ?? 'image/jpeg';
 
       const [session, contactProfile, hadPriorMessages] = await Promise.all([
@@ -597,7 +597,7 @@ export async function POST(req: NextRequest) {
         hasPriorMessages(from),
       ]);
 
-      // Check if user explicitly stated their name in this message ("My name is John")
+      /// Check if user explicitly stated their name in this message ("My name is John")
       const newlyStatedName = msgType === 'text' ? extractExplicitNameFromText(text) : null;
       if (newlyStatedName) {
         await saveContactProfile({ phone: from, name: newlyStatedName, nameAsked: false });
@@ -688,10 +688,10 @@ export async function POST(req: NextRequest) {
       // Runs BEFORE the enrollment-session branch so it applies to every user,
       // including those with an existing (e.g. approved) enrollment session.
       if (msgType === 'text' && contactProfile?.discountPending) {
-        const collectedName  = contactProfile.discountCollectedName;
+        const collectedName = contactProfile.discountCollectedName;
         const collectedEmail = contactProfile.discountCollectedEmail;
 
-        let finalName:  string | null = collectedName  ?? null;
+        let finalName: string | null = collectedName ?? null;
         let finalEmail: string | null = collectedEmail ?? null;
 
         const { email: parsedEmail, name: parsedName } = extractEmailAndName(text);
@@ -733,10 +733,10 @@ export async function POST(req: NextRequest) {
       // Simpler than discount: no yes/no offer step — goes straight to
       // collecting name/email once a demo request was detected (0e2 below).
       if (msgType === 'text' && contactProfile?.demoPending) {
-        const collectedName  = contactProfile.demoCollectedName;
+        const collectedName = contactProfile.demoCollectedName;
         const collectedEmail = contactProfile.demoCollectedEmail;
 
-        let finalName:  string | null = collectedName  ?? null;
+        let finalName: string | null = collectedName ?? null;
         let finalEmail: string | null = collectedEmail ?? null;
 
         const { email: parsedEmail, name: parsedName } = extractEmailAndName(text);
@@ -786,10 +786,10 @@ export async function POST(req: NextRequest) {
       //             (b) vague sticker-shock reaction right after we quoted the fee, OR
       //             (c) group discount already explained AND they're STILL asking about discount
       const lastTwoReplies = recentMsgs.slice(-2).map(m => m.reply || '').join(' ');
-      const feeJustQuoted  = /7,?499|7499|per month|\/month|\bfee\b|\bprice\b/i.test(lastTwoReplies);
+      const feeJustQuoted = /7,?499|7499|per month|\/month|\bfee\b|\bprice\b/i.test(lastTwoReplies);
 
       const groupDiscountExplained = recentMsgs.some(m => m.reply && m.reply.includes('20%'));
-      const stillAskingDiscount    = /\bdiscount\b/i.test(text);
+      const stillAskingDiscount = /\bdiscount\b/i.test(text);
 
       const shouldCollectDiscount =
         msgType === 'text' && (
@@ -894,8 +894,8 @@ export async function POST(req: NextRequest) {
       // ── 1. Active enrollment session ─────────────────────────────────────
       if (session) {
         const history: GeminiHistory = recentMsgs.flatMap(m => [
-          ...(m.text && m.text !== '[image]' ? [{ role: 'user'  as const, parts: [{ text: m.text  }] }] : []),
-          ...(m.reply                         ? [{ role: 'model' as const, parts: [{ text: m.reply }] }] : []),
+          ...(m.text && m.text !== '[image]' ? [{ role: 'user' as const, parts: [{ text: m.text }] }] : []),
+          ...(m.reply ? [{ role: 'model' as const, parts: [{ text: m.reply }] }] : []),
         ]);
 
         const { reply, mediaUrl } = await runEnrollmentMachine(
@@ -941,15 +941,15 @@ export async function POST(req: NextRequest) {
       // ── 4. Enrollment intent ──────────────────────────────────────────────
       if (wantsEnrollment(text)) {
         const newSession: EnrollmentSession = {
-          phone:         from,
-          state:         'collecting_name',
-          name:          null,
-          email:         null,
-          driveFileId:   null,
-          driveFileUrl:  null,
+          phone: from,
+          state: 'collecting_name',
+          name: null,
+          email: null,
+          driveFileId: null,
+          driveFileUrl: null,
           sheetRowIndex: null,
-          createdAt:     Date.now(),
-          updatedAt:     Date.now(),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
         };
         const reply = `Great! I'll get you enrolled in the *4-Month AI & Data Science Bootcamp* 🎓\n\nPlease share your *full name* and *email address* together so we can get started!\n\nExample: _John Doe, johndoe@gmail.com_`;
         await saveEnrollmentSession(newSession);
@@ -988,8 +988,8 @@ export async function POST(req: NextRequest) {
       }
 
       const history: GeminiHistory = recentMsgs.flatMap(m => [
-        ...(m.text && m.text !== '[image]' ? [{ role: 'user'  as const, parts: [{ text: m.text  }] }] : []),
-        ...(m.reply                         ? [{ role: 'model' as const, parts: [{ text: m.reply }] }] : []),
+        ...(m.text && m.text !== '[image]' ? [{ role: 'user' as const, parts: [{ text: m.text }] }] : []),
+        ...(m.reply ? [{ role: 'model' as const, parts: [{ text: m.reply }] }] : []),
       ]);
 
       let reply = await getAIReply(text, history);
