@@ -563,6 +563,21 @@ async function runEnrollmentMachine(
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
+  // Forward to Agent 2 (Internal Chatbot) if message was sent to Number 2
+  const phoneNumberId = body?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
+  if (phoneNumberId === '1374955249033565') {
+    try {
+      await fetch('https://whatsapp.datacrumbs.org/api/whatsapp/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch (fwdErr) {
+      console.error('[webhook] Failed to forward to internal bot:', fwdErr);
+    }
+    return NextResponse.json({ status: 'forwarded_to_agent_2' });
+  }
+
   after(async () => {
     try {
       const value = body?.entry?.[0]?.changes?.[0]?.value;
