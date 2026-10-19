@@ -566,15 +566,16 @@ export async function POST(req: NextRequest) {
   // Forward to Agent 2 (Internal Chatbot) if message was sent to Number 2
   const phoneNumberId = body?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
   if (phoneNumberId === '1374955249033565') {
-    try {
-      await fetch('https://whatsapp.datacrumbs.org/api/whatsapp/webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    } catch (fwdErr) {
+    // Fire-and-forget: don't await — the internal bot processes inline and
+    // may take several seconds (Gemini AI call). Return 200 to Meta instantly
+    // so it doesn't timeout or retry.
+    fetch('https://whatsapp.datacrumbs.org/api/whatsapp/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).catch(fwdErr => {
       console.error('[webhook] Failed to forward to internal bot:', fwdErr);
-    }
+    });
     return NextResponse.json({ status: 'forwarded_to_agent_2' });
   }
 
