@@ -323,6 +323,34 @@ export async function updateSheetStatus(rowIndex: number, status: string): Promi
   });
 }
 
+export async function updateEnrollmentSheetStatusByPhone(phone: string, status: string): Promise<boolean> {
+  try {
+    const sheets = google.sheets({ version: 'v4', auth: auth() });
+    const cleanPhone = phone.replace(/\D/g, '');
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_TAB}!A2:F`,
+    });
+    const rows = res.data.values ?? [];
+    for (let i = 0; i < rows.length; i++) {
+      const rowPhone = String(rows[i][2] ?? '').replace(/\D/g, '');
+      if (rowPhone && (rowPhone === cleanPhone || rowPhone.endsWith(cleanPhone) || cleanPhone.endsWith(rowPhone))) {
+        const rowNum = i + 2;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: `${SHEET_TAB}!F${rowNum}`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: { values: [[status]] },
+        });
+        return true;
+      }
+    }
+  } catch (err) {
+    console.error('[google] updateEnrollmentSheetStatusByPhone error:', err);
+  }
+  return false;
+}
+
 // ── Sheet reads — dashboard pages read directly from the Sheet (the sheet is
 // the reviewed, editable source of truth for Leads/Discounts/Demo/Enrollments;
 // only Chats reflects MongoDB directly). ──────────────────────────────────

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateEnrollmentState, getAllEnrollments } from '@/lib/redis';
-import { updateSheetStatus } from '@/lib/google';
+import { updateEnrollmentState, getAllEnrollments, saveMessage } from '@/lib/redis';
+import { updateSheetStatus, updateEnrollmentSheetStatusByPhone } from '@/lib/google';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
 export async function POST(
@@ -8,39 +8,86 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const phone  = decodeURIComponent(id);
+  const phone = decodeURIComponent(id);
 
-  // Read body safely — Next.js 15 body streaming can return empty on some runtimes
-  let status: 'approved' | 'rejected';
+  let status: 'approved' | 'rejected' | 'pending';
   try {
     const raw = await req.text();
     const body = JSON.parse(raw) as { status?: string };
-    if (body.status !== 'approved' && body.status !== 'rejected') {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    if (body.status !== 'approved' && body.status !== 'rejected' && body.status !== 'pending') {
+      return NextResponse.json({ error: 'Invalid status. Must be approved, rejected, or pending' }, { status: 400 });
     }
-    status = body.status;
+    status = body.status as 'approved' | 'rejected' | 'pending';
   } catch {
     return NextResponse.json({ error: 'Invalid or empty request body' }, { status: 400 });
   }
 
-  await updateEnrollmentState(phone, status);
+  // 1. Update MongoDB enrollment state
+  const mongoState = status === 'approved'
+    ? 'approved'
+    : status === 'rejected'
+    ? 'rejected'
+    : 'screenshot_received';
 
-  // Update Google Sheet row
-  const all     = await getAllEnrollments();
-  const session = all.find(s => s.phone === phone);
-  if (session?.sheetRowIndex && session.sheetRowIndex > 0) {
-    await updateSheetStatus(
-      session.sheetRowIndex,
-      status === 'approved' ? 'Approved ✅' : 'Rejected ❌',
-    );
+  try {
+    await updateEnrollmentState(phone, mongoState);
+  } catch (mongoErr) {
+    console.error('[status] Error updating MongoDB:', mongoErr);
   }
 
-  // Notify the student on WhatsApp
-  const msg = status === 'approved'
-    ? `🎉 Great news! Your payment has been *verified* and your enrollment in the DataCrumbs AI & Data Science Bootcamp is *confirmed*!\n\nWelcome to the family! Our team will be in touch with next steps. 🚀`
-    : `We're sorry, but we couldn't verify your payment screenshot. Please send a clear screenshot showing the payment details, or contact us at +92 329 2020497 for assistance.`;
+  // 2. Update Google Sheet status
+  const sheetStatusText = status === 'approved'
+    ? 'Approved ✅'
+    : status === 'rejected'
+    ? 'Rejected ❌'
+    : 'Pending';
 
-  await sendWhatsAppMessage(phone, msg);
+  try {
+    const all = await getAllEnrollments();
+    const session = all.find(s => s.phone === phone);
+    if (session?.sheetRowIndex && session.sheetRowIndex > 0) {
+      await updateSheetStatus(session.sheetRowIndex, sheetStatusText);
+    }
+    // Also run direct phone matching to ensure sheet row is always found
+    await updateEnrollmentSheetStatusByPhone(phone, sheetStatusText);
+  } catch (sheetErr) {
+    console.error('[status] Error updating Google Sheet:', sheetErr);
+  }
 
-  return NextResponse.json({ ok: true });
+  // 3. Notify student on WhatsApp if approved or rejected
+  if (status === 'approved') {
+    const msg = `🎉 *Payment Verified & Enrollment Confirmed!*
+
+Assalam-o-Alaikum, your payment has been *verified* and your seat in the DataCrumbs AI & Data Science Bootcamp is *officially confirmed*! 🎓
+
+Here are your onboarding links:
+1. Create your student account on our LMS:
+   🔗 https://lms.datacrumbs.org
+2. Join the Official Student Community:
+   💬 https://chat.whatsapp.com/Hu6jC1O0LrhBs9WesBlqFT
+
+Welcome to DataCrumbs! Our team will share your orientation schedule right here shortly. 🚀`;
+
+    try {
+      await sendWhatsAppMessage(phone, msg);
+      await saveMessage({ from: phone, text: '', reply: msg, timestamp: Date.now() });
+    } catch (waErr) {
+      console.error('[status] Failed to send WhatsApp approval message:', waErr);
+    }
+  } else if (status === 'rejected') {
+    const msg = `Assalam-o-Alaikum, we were unable to verify your payment screenshot.
+
+Please send a clear screenshot showing the transaction ID, date, and fee amount (Rs 7,499 / 7,500) so we can verify and confirm your seat.
+
+If you have already paid or need any assistance, reply here or contact us at +92 329 2020497.`;
+
+    try {
+      await sendWhatsAppMessage(phone, msg);
+      await saveMessage({ from: phone, text: '', reply: msg, timestamp: Date.now() });
+    } catch (waErr) {
+      console.error('[status] Failed to send WhatsApp rejection message:', waErr);
+    }
+  }
+
+  return NextResponse.json({ ok: true, phone, status });
 }

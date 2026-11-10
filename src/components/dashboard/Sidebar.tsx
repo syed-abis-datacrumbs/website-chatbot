@@ -40,8 +40,8 @@ const NAV: { href: string; label: string; countKey?: CountKey; icon: React.React
     ),
   },
   {
-    href: '/enrollments',
-    label: 'Enrollments',
+    href: '/payments',
+    label: 'Payments',
     countKey: 'enrollments',
     icon: (
       <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,7 +126,7 @@ export default function Sidebar() {
         {/* Nav */}
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {NAV.map(item => {
-            const active = pathname === item.href;
+            const active = pathname === item.href || (item.href === '/payments' && pathname === '/enrollments');
             const hovering = hovered === item.href;
             return (
               <Link
