@@ -81,7 +81,7 @@ Analyze this uploaded bank transfer receipt / screenshot carefully.
 
 Expected Payment Criteria:
 1. Beneficiary / Receiver Account Title or Name: Must relate to "Data Crumbs", "DataCrumbs", or "Abis Hussain Syed" / "Syed Abis Hussain" / "Abis Hussain".
-2. Expected Fee Amount: Around Rs 7,500 (accept 7,499 - 7,500 PKR, or partial/initial deposit).
+2. Expected Fee Amount: Exactly 7,499 PKR or 7,500 PKR (Both 7,499 and 7,500 are completely valid, standard fee amounts and must be accepted).
 3. Status: Must be a completed / successful transaction, not scheduled, pending, or failed.
 4. Recognizable Pakistani Bank or Wallet: Raast, Easypaisa, JazzCash, Nayapay, SadaPay, HabibMetro, Meezan, HBL, Bank Alfalah, MCB, UBL, etc.
 
