@@ -46,6 +46,7 @@ export async function getMessages(): Promise<ChatMessage[]> {
 export interface ContactProfile {
   phone: string;
   name?: string;
+  email?: string;
   nameAsked: boolean;
   botDisabled: boolean;
   updatedAt: number;

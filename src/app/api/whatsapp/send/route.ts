@@ -4,7 +4,7 @@ import { saveMessage, saveContactProfile } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { to, message, sendBrochure, isBootcampLead, name, goal } = body;
+  const { to, message, sendBrochure, isBootcampLead, name, email, goal } = body;
 
   if (!to) {
     return NextResponse.json({ error: 'Missing recipient phone number (to)' }, { status: 400 });
@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
   // ── Automated AI Bootcamp Funnel: Message 1 ─────────────────────────────────
   if (isBootcampLead) {
     const studentName = (name || '').trim() || 'there';
+    const studentEmail = (email || '').trim() || undefined;
     const studentGoal = (goal || '').trim() || 'Freelancing & Career Switch';
 
     const msg1 = `Assalam-o-Alaikum ${studentName}! 👋 This is Zoya from DataCrumbs.
@@ -23,7 +24,7 @@ I saw on your form that your primary goal is ${studentGoal}.
 
 Quick question to ensure this batch is the right fit: What is your educational background or current job role?`;
 
-    console.log(`[whatsapp/send] Received bootcamp lead: ${studentName} (${to}) - Goal: ${studentGoal}`);
+    console.log(`[whatsapp/send] Received bootcamp lead: ${studentName} (${to}) - Email: ${studentEmail || 'none'} - Goal: ${studentGoal}`);
 
     try {
       await sendWhatsAppMessage(to, msg1);
@@ -49,6 +50,11 @@ Quick question to ensure this batch is the right fit: What is your educational b
     await saveContactProfile({
       phone: to,
       name: studentName,
+      email: studentEmail,
+      bootcampLead: true,
+      bootcampGoal: studentGoal,
+      bootcampLeadPending: true,
+    });
       bootcampLead: true,
       bootcampGoal: studentGoal,
       bootcampLeadPending: true,

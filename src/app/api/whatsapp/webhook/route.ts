@@ -121,10 +121,16 @@ function extractEmailAndName(text: string): { email: string | null; name: string
 // Extract explicit name introduced in conversation ("my name is Syed Abis", "I am Syed Abis")
 function extractExplicitNameFromText(text: string): string | null {
   if (!text || text.length > 100) return null;
+  // Ignore statements like "I am in mechanical engineering", "I'm a developer", "I am studying..."
+  if (/\b(?:i am|i'm)\s+(?:in|from|a|an|working|studying|currently|just|doing|living|at)\b/i.test(text)) {
+    return null;
+  }
   const match = text.match(/\b(?:my name is|i am|i'm|call me|name is)\s+([A-Za-z\s]{2,35})/i);
   if (match) {
     const candidate = cleanName(match[1]);
-    if (looksLikeName(candidate)) return candidate;
+    if (looksLikeName(candidate) && !/\b(in|from|a|an|working|studying|engineering|engineer|bba|cs|student|freelancer)\b/i.test(candidate)) {
+      return candidate;
+    }
   }
   return null;
 }
@@ -510,6 +516,7 @@ async function runEnrollmentMachine(
 
         const validName = (session.name && looksLikeName(session.name)) ? session.name : null;
         const nameGreeting = validName ? `, *${validName}*` : '';
+        const lmsEmailText = session.email ? ` using your registered email (*${session.email}*)` : '';
 
         if (aiCheck.isValid) {
           session.state = 'approved';
@@ -523,7 +530,7 @@ Assalam-o-Alaikum${nameGreeting}, your deposit of Rs ${aiCheck.amount || '7,500'
 Your seat in the *16-Week AI & Data Science Bootcamp* is officially *CONFIRMED*! 🎓
 
 Here are your onboarding steps:
-1. Create your account on our LMS using this same email (${session.email}):
+1. Create your account on our LMS${lmsEmailText}:
    🔗 https://lms.datacrumbs.org
 2. Join the Official Student Community:
    💬 https://chat.whatsapp.com/Hu6jC1O0LrhBs9WesBlqFT
@@ -538,7 +545,7 @@ Our team will share your official Student Roll Number and orientation details he
 
 Once verified, we will confirm your enrollment and send orientation details right here.
 
-In the meantime, please create your student profile on our LMS using the *same email address* (${session.email}):
+In the meantime, please create your student profile on our LMS${lmsEmailText}:
 🔗 https://lms.datacrumbs.org
 
 Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
@@ -662,12 +669,14 @@ export async function POST(req: NextRequest) {
 
       /// Check if user explicitly stated their name in this message ("My name is John")
       const newlyStatedName = msgType === 'text' ? extractExplicitNameFromText(text) : null;
-      if (newlyStatedName) {
+      if (newlyStatedName && (!contactProfile?.name || !looksLikeName(contactProfile.name))) {
         await saveContactProfile({ phone: from, name: newlyStatedName, nameAsked: false });
         await syncLeadNameIfNew(from, contactProfile?.name, newlyStatedName);
       }
 
-      const explicitName = newlyStatedName || (contactProfile?.name && looksLikeName(contactProfile.name) ? contactProfile.name : undefined);
+      const explicitName = (contactProfile?.name && looksLikeName(contactProfile.name))
+        ? contactProfile.name
+        : (newlyStatedName || undefined);
 
       // ── New lead → log to the "agent leads" Google Sheet tab (once per contact, ever) ──
       // Uses an atomic claim (claimNewLead), not hadPriorMessages — a plain existence
@@ -725,11 +734,12 @@ export async function POST(req: NextRequest) {
 
         // 2. Set up enrollment session awaiting screenshot
         const now = Date.now();
+        const studentEmail = contactProfile?.email || contactProfile?.discountCollectedEmail || null;
         await saveEnrollmentSession({
           phone: from,
           state: 'awaiting_screenshot',
           name: contactProfile?.name || explicitName || 'Student',
-          email: contactProfile?.discountCollectedEmail ?? null,
+          email: studentEmail,
           driveFileId: null,
           driveFileUrl: null,
           sheetRowIndex: null,
