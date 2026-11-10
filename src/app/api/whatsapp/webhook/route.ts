@@ -688,11 +688,17 @@ export async function POST(req: NextRequest) {
         });
 
         // 2. Set up enrollment session awaiting screenshot
+        const now = Date.now();
         await saveEnrollmentSession({
           phone: from,
-          name: contactProfile?.name || explicitName || 'Student',
           state: 'awaiting_screenshot',
-          updatedAt: Date.now(),
+          name: contactProfile?.name || explicitName || 'Student',
+          email: contactProfile?.discountCollectedEmail ?? null,
+          driveFileId: null,
+          driveFileUrl: null,
+          sheetRowIndex: null,
+          createdAt: now,
+          updatedAt: now,
         });
 
         // 3. Build and send Message 2 (Class schedule + Payment details)
