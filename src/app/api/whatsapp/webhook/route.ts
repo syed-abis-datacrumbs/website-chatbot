@@ -5,7 +5,7 @@ import {
   sendWhatsAppMessage, sendWhatsAppDocument,
   downloadWhatsAppMedia,
 } from '@/lib/whatsapp';
-import { getAIReply } from '@/lib/gemini';
+import { getAIReply, verifyPaymentReceiptWithAI } from '@/lib/gemini';
 import { CORE_SYSTEM_PROMPT, WELCOME_GREETING } from '@/lib/knowledge';
 import {
   saveMessage, getRecentMessagesByPhone, hasPriorMessages, claimNewLead,
@@ -16,7 +16,7 @@ import {
   type EnrollmentSession,
 } from '@/lib/redis';
 import {
-  uploadScreenshotToDrive, appendEnrollmentRow,
+  uploadScreenshotToDrive, appendEnrollmentRow, updateSheetStatus,
   appendDiscountRow, updateDiscountRowComment,
   appendDemoRow,
   appendLeadRow, updateLeadName,
@@ -473,6 +473,7 @@ async function runEnrollmentMachine(
         let fileId = '';
         let webViewLink = '';
         let rowIndex = -1;
+        let aiCheck = { isValid: false, reason: '', amount: null as number | null, bankOrWallet: null as string | null, transactionId: null as string | null };
 
         try {
           const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
@@ -482,6 +483,10 @@ async function runEnrollmentMachine(
           );
           fileId = driveRes.fileId;
           webViewLink = driveRes.webViewLink;
+
+          // AI Vision verification with Gemini 2.5 Flash
+          aiCheck = await verifyPaymentReceiptWithAI(buffer, mimeType);
+          console.log('[webhook] AI Payment Verification Result:', aiCheck);
 
           rowIndex = await appendEnrollmentRow({
             name: session.name || 'Student',
@@ -502,11 +507,42 @@ async function runEnrollmentMachine(
         if (rowIndex > 0) {
           session.sheetRowIndex = rowIndex;
         }
-        session.state = 'screenshot_received';
 
         const validName = (session.name && looksLikeName(session.name)) ? session.name : null;
         const nameGreeting = validName ? `, *${validName}*` : '';
-        reply = `✅ We've received your image! Our team will review and verify your payment receipt. Once verified, we will confirm your enrollment here.\n\nIn the meantime, please sign up on our LMS using the *same email address* you provided (${session.email}):\n🔗 https://lms.datacrumbs.org\n\nThank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
+
+        if (aiCheck.isValid) {
+          session.state = 'approved';
+          if (rowIndex > 0) {
+            await updateSheetStatus(rowIndex, `Approved (AI Verified ✅ - Rs ${aiCheck.amount || '7,500'})`);
+          }
+          reply = `🎉 *Payment Verified Successfully!*
+
+Assalam-o-Alaikum${nameGreeting}, your deposit of Rs ${aiCheck.amount || '7,500'} via ${aiCheck.bankOrWallet || 'Bank/Wallet'} has been verified! (Trx ID: ${aiCheck.transactionId || 'Confirmed'}).
+
+Your seat in the *16-Week AI & Data Science Bootcamp* is officially *CONFIRMED*! 🎓
+
+Here are your onboarding steps:
+1. Create your account on our LMS using this same email (${session.email}):
+   🔗 https://lms.datacrumbs.org
+2. Join the Official Student Community:
+   💬 https://chat.whatsapp.com/Hu6jC1O0LrhBs9WesBlqFT
+
+Our team will share your official Student Roll Number and orientation details here shortly. Welcome to DataCrumbs! 🚀`;
+        } else {
+          session.state = 'screenshot_received';
+          if (rowIndex > 0) {
+            await updateSheetStatus(rowIndex, `Pending Review ⚠️ (${aiCheck.reason || 'Needs Manual Review'})`);
+          }
+          reply = `✅ We've received your image! Our admissions team is reviewing the payment details.
+
+Once verified, we will confirm your enrollment and send orientation details right here.
+
+In the meantime, please create your student profile on our LMS using the *same email address* (${session.email}):
+🔗 https://lms.datacrumbs.org
+
+Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
+        }
       } else if (msgType === 'text' && text.trim()) {
         const isPaymentQuery = /\b(pay|payment|bank|easypaisa|jazzcash|nayapay|account|iban|fee|receipt|ss|screenshot|transfer|paid)\b/i.test(text);
         if (enrollmentSystemPrompt) {
