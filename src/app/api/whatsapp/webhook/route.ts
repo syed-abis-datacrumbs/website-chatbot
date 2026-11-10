@@ -574,21 +574,53 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
       break;
     }
 
-    case 'approved': {
+    case 'approved':
+    case 'rejected': {
       if ((msgType === 'image' || msgType === 'document') && imageId) {
-        // Upload for dashboard display only — image doesn't mean anything enrollment-wise here
+        let fileId = '';
+        let webViewLink = '';
         try {
           const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
-          const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now());
-          mediaUrl = fileId;
+          const ts = Date.now();
+          const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
+          fileId = driveRes.fileId;
+          webViewLink = driveRes.webViewLink;
+
+          const rowIndex = await appendEnrollmentRow({
+            name: session.name || 'Student',
+            email: session.email || 'unknown@datacrumbs.org',
+            phone: from,
+            timestamp: ts,
+            driveLink: webViewLink,
+          });
+          if (rowIndex > 0) session.sheetRowIndex = rowIndex;
         } catch (err) {
-          console.error('Drive upload failed (approved):', err instanceof Error ? err.message : err);
+          console.error('Drive upload failed (re-upload):', err instanceof Error ? err.message : err);
         }
-        reply = `Please type your question in text 😊`;
+
+        if (fileId) {
+          session.driveFileId = fileId;
+          session.driveFileUrl = webViewLink;
+          mediaUrl = fileId;
+        }
+        session.state = 'screenshot_received';
+
+        const validName = (session.name && looksLikeName(session.name)) ? session.name : null;
+        const nameGreeting = validName ? `, *${validName}*` : '';
+        const lmsEmailText = session.email ? ` using your registered email (*${session.email}*)` : '';
+
+        reply = `✅ We've received your payment screenshot! Our admissions team is reviewing the payment details.
+
+Once verified by our team, we will confirm your enrollment and send your orientation details right here.
+
+In the meantime, please create your student profile on our LMS${lmsEmailText}:
+🔗 https://lms.datacrumbs.org
+
+Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
       } else if (msgType === 'text' && text.trim()) {
-        reply = await getAIReply(text, history, CORE_SYSTEM_PROMPT);
+        reply = await getAIReply(text, history, session.state === 'approved' ? CORE_SYSTEM_PROMPT : (enrollmentSystemPrompt || CORE_SYSTEM_PROMPT));
       } else {
-        reply = `Please type your question in text 😊`;
+        reply = `Please send your questions in text, or share your payment screenshot here 😊`;
       }
       break;
     }
@@ -999,24 +1031,65 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      // ── 2. Save non-text messages so they appear in the dashboard ────────
+      // ── 2. Handle image/screenshot uploads when no active session exists ──
       if (msgType !== 'text') {
-        if (msgType === 'image' || msgType === 'document') {
+        if ((msgType === 'image' || msgType === 'document') && imageId) {
           let mediaUrl: string | undefined;
-          if (imageId) {
-            try {
-              const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
-              const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now());
-              mediaUrl = fileId;
-            } catch (err) {
-              console.error('Drive upload failed (non-enrollment):', err instanceof Error ? err.message : err);
-            }
+          let webViewLink = '';
+          let rowIndex = -1;
+          const ts = Date.now();
+
+          const studentName = contactProfile?.name || explicitName || 'Student';
+          const studentEmail = contactProfile?.email || contactProfile?.discountCollectedEmail || null;
+
+          try {
+            const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
+            const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
+            mediaUrl = driveRes.fileId;
+            webViewLink = driveRes.webViewLink;
+
+            rowIndex = await appendEnrollmentRow({
+              name: studentName,
+              email: studentEmail || 'unknown@datacrumbs.org',
+              phone: from,
+              timestamp: ts,
+              driveLink: webViewLink,
+            });
+
+            await saveEnrollmentSession({
+              phone: from,
+              state: 'screenshot_received',
+              name: studentName,
+              email: studentEmail,
+              driveFileId: driveRes.fileId,
+              driveFileUrl: webViewLink,
+              sheetRowIndex: rowIndex > 0 ? rowIndex : null,
+              createdAt: ts,
+              updatedAt: ts,
+            });
+          } catch (err) {
+            console.error('Drive/Sheets upload failed (direct image upload):', err instanceof Error ? err.message : err);
           }
-          await attachBrochureIfFirstContact(hadPriorMessages, from);
-          const imgReply = 'Please type your question in text 😊';
-          await sendWhatsAppMessage(from, imgReply);
+
+          const validName = (studentName && looksLikeName(studentName)) ? studentName : null;
+          const nameGreeting = validName ? `, *${validName}*` : '';
+          const lmsEmailText = studentEmail ? ` using your registered email (*${studentEmail}*)` : '';
+
+          const reply = `✅ We've received your payment screenshot! Our admissions team is reviewing the payment details.
+
+Once verified by our team, we will confirm your enrollment and send your orientation details right here.
+
+In the meantime, please create your student profile on our LMS${lmsEmailText}:
+🔗 https://lms.datacrumbs.org
+
+Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
+
+          await sendWhatsAppMessage(from, reply);
           await saveMessage({
-            from, text: '[image]', reply: imgReply, timestamp: Date.now(),
+            from,
+            text: '[image]',
+            reply,
+            timestamp: Date.now(),
             mediaType: 'image',
             ...(mediaUrl ? { mediaUrl } : {}),
           });

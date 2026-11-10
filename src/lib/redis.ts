@@ -471,10 +471,7 @@ export interface EnrollmentSession {
 
 export async function getActiveEnrollmentSession(phone: string): Promise<EnrollmentSession | null> {
   const db  = await getDb();
-  const doc = await db.collection('enrollment_sessions').findOne({
-    phone,
-    state: { $nin: ['rejected'] },
-  });
+  const doc = await db.collection('enrollment_sessions').findOne({ phone });
   return doc ? (doc as unknown as EnrollmentSession) : null;
 }
 
