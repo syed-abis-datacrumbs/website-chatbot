@@ -55,10 +55,6 @@ Quick question to ensure this batch is the right fit: What is your educational b
       bootcampGoal: studentGoal,
       bootcampLeadPending: true,
     });
-      bootcampLead: true,
-      bootcampGoal: studentGoal,
-      bootcampLeadPending: true,
-    });
 
     return NextResponse.json({ ok: true, step: 'message_1_sent' });
   }
