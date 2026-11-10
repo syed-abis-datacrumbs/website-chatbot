@@ -39,12 +39,53 @@ export default function PaymentsPage() {
   // Modals state
   const [rejectTarget, setRejectTarget] = useState<PaymentItem | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectMessage, setRejectMessage] = useState('');
   const [approveTarget, setApproveTarget] = useState<PaymentItem | null>(null);
+  const [approveMessage, setApproveMessage] = useState('');
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
+
+  function buildRejectMessage(studentName: string, reasonText: string) {
+    const reasonBlock = reasonText.trim() ? `\n\n👉 *Reason:* ${reasonText.trim()}` : '';
+    return `Assalam-o-Alaikum ${studentName},
+
+Our admissions team reviewed your payment screenshot, but we could not verify your transaction.${reasonBlock}
+
+Please send a clear screenshot showing the transaction ID, date, and fee amount (Rs 7,499 / 7,500) so we can verify and confirm your seat.
+
+If you have already paid or need assistance, reply here or contact us at +92 329 2020497.`;
+  }
+
+  function openApproveModal(item: PaymentItem) {
+    setApproveTarget(item);
+    setApproveMessage(`🎉 *Payment Verified & Enrollment Confirmed!*
+
+Assalam-o-Alaikum ${item.name}, your payment has been *verified* and your seat in the DataCrumbs AI & Data Science Bootcamp is *officially confirmed*! 🎓
+
+Here are your onboarding links:
+1. Create your student account on our LMS:
+   🔗 https://lms.datacrumbs.org
+2. Join the Official Student Community:
+   💬 https://chat.whatsapp.com/Hu6jC1O0LrhBs9WesBlqFT
+
+Welcome to DataCrumbs! Our team will share your orientation schedule right here shortly. 🚀`);
+  }
+
+  function openRejectModal(item: PaymentItem) {
+    setRejectTarget(item);
+    setRejectReason('');
+    setRejectMessage(buildRejectMessage(item.name, ''));
+  }
+
+  function handleReasonChange(newReason: string) {
+    setRejectReason(newReason);
+    if (rejectTarget) {
+      setRejectMessage(buildRejectMessage(rejectTarget.name, newReason));
+    }
+  }
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -70,13 +111,14 @@ export default function PaymentsPage() {
     phone: string,
     status: 'approved' | 'rejected' | 'pending',
     reason?: string,
+    customMessage?: string,
   ) {
     setActing(phone + status);
     try {
       const res = await fetch(`/api/enrollments/${encodeURIComponent(phone)}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, reason }),
+        body: JSON.stringify({ status, reason, customMessage }),
       });
 
       if (!res.ok) {
@@ -106,7 +148,9 @@ export default function PaymentsPage() {
       // Close any open modals
       setRejectTarget(null);
       setRejectReason('');
+      setRejectMessage('');
       setApproveTarget(null);
+      setApproveMessage('');
     } catch (err) {
       console.error('Status change error:', err);
       showToast('Failed to update status', 'error');
@@ -199,28 +243,33 @@ export default function PaymentsPage() {
                 You are approving the payment for <strong style={{ color: '#fff' }}>{approveTarget.name}</strong> (+{approveTarget.phone}).
               </div>
 
-              {/* Message preview */}
+              {/* Message preview / editor */}
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: NEON, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  💬 WhatsApp Message Preview (will be sent automatically):
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: NEON, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    💬 WhatsApp Message (Editable & Customizable):
+                  </label>
+                  <span style={{ fontSize: 10, color: '#9ca3af' }}>Editable before sending</span>
                 </div>
-                <div style={{
-                  background: 'rgba(20,45,30,0.5)', border: '1px solid rgba(92,228,109,0.25)',
-                  borderRadius: 10, padding: 14, fontSize: 12, color: '#d1d5db', lineHeight: 1.5,
-                  whiteSpace: 'pre-line',
-                }}>
-                  {`🎉 *Payment Verified & Enrollment Confirmed!*
-
-Assalam-o-Alaikum ${approveTarget.name}, your payment has been *verified* and your seat in the DataCrumbs AI & Data Science Bootcamp is *officially confirmed*! 🎓
-
-Here are your onboarding links:
-1. Create your student account on our LMS:
-   🔗 https://lms.datacrumbs.org
-2. Join the Official Student Community:
-   💬 https://chat.whatsapp.com/Hu6jC1O0LrhBs9WesBlqFT
-
-Welcome to DataCrumbs! Our team will share your orientation schedule right here shortly. 🚀`}
-                </div>
+                <textarea
+                  rows={9}
+                  value={approveMessage}
+                  onChange={e => setApproveMessage(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(20,45,30,0.6)',
+                    border: '1px solid rgba(92,228,109,0.35)',
+                    borderRadius: 10,
+                    padding: 12,
+                    fontSize: 12,
+                    color: '#fff',
+                    lineHeight: 1.5,
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
+                  }}
+                />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
@@ -235,7 +284,7 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
                   Cancel
                 </button>
                 <button
-                  onClick={() => executeStatusChange(approveTarget.phone, 'approved')}
+                  onClick={() => executeStatusChange(approveTarget.phone, 'approved', undefined, approveMessage)}
                   disabled={Boolean(acting)}
                   style={{
                     padding: '8px 20px', borderRadius: 8, border: 'none',
@@ -289,7 +338,7 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
                     <button
                       key={r}
                       type="button"
-                      onClick={() => setRejectReason(r)}
+                      onClick={() => handleReasonChange(r)}
                       style={{
                         padding: '4px 10px', borderRadius: 20,
                         border: rejectReason === r ? '1px solid #f87171' : '1px solid rgba(255,255,255,0.1)',
@@ -313,38 +362,48 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
                   type="text"
                   placeholder="e.g. Transaction ID is blurry, or amount does not match Rs 7,499"
                   value={rejectReason}
-                  onChange={e => setRejectReason(e.target.value)}
+                  onChange={e => handleReasonChange(e.target.value)}
                   style={{
                     width: '100%', padding: '10px 14px', borderRadius: 8,
                     border: '1px solid rgba(248,113,113,0.4)', background: '#0d0808',
                     color: '#fff', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+                    boxSizing: 'border-box',
                   }}
                 />
               </div>
 
-              {/* WhatsApp message preview */}
+              {/* WhatsApp message editor */}
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  💬 WhatsApp Message Preview:
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#fca5a5', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    💬 WhatsApp Message (Editable & Customizable):
+                  </label>
+                  <span style={{ fontSize: 10, color: '#9ca3af' }}>Editable before sending</span>
                 </div>
-                <div style={{
-                  background: 'rgba(40,15,15,0.6)', border: '1px solid rgba(248,113,113,0.25)',
-                  borderRadius: 10, padding: 12, fontSize: 12, color: '#d1d5db', lineHeight: 1.4,
-                  whiteSpace: 'pre-line',
-                }}>
-                  {`Assalam-o-Alaikum ${rejectTarget.name},
-
-Our admissions team reviewed your payment screenshot, but we could not verify your transaction.${rejectReason ? `\n\n👉 *Reason:* ${rejectReason}` : ''}
-
-Please send a clear screenshot showing the transaction ID, date, and fee amount (Rs 7,499 / 7,500) so we can verify and confirm your seat.
-
-If you have already paid or need assistance, reply here or contact us at +92 329 2020497.`}
-                </div>
+                <textarea
+                  rows={8}
+                  value={rejectMessage}
+                  onChange={e => setRejectMessage(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(40,15,15,0.7)',
+                    border: '1px solid rgba(248,113,113,0.35)',
+                    borderRadius: 10,
+                    padding: 12,
+                    fontSize: 12,
+                    color: '#fff',
+                    lineHeight: 1.4,
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
+                  }}
+                />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                 <button
-                  onClick={() => { setRejectTarget(null); setRejectReason(''); }}
+                  onClick={() => { setRejectTarget(null); setRejectReason(''); setRejectMessage(''); }}
                   disabled={Boolean(acting)}
                   style={{
                     padding: '8px 16px', borderRadius: 8, border: BORDER,
@@ -354,7 +413,7 @@ If you have already paid or need assistance, reply here or contact us at +92 329
                   Cancel
                 </button>
                 <button
-                  onClick={() => executeStatusChange(rejectTarget.phone, 'rejected', rejectReason)}
+                  onClick={() => executeStatusChange(rejectTarget.phone, 'rejected', rejectReason, rejectMessage)}
                   disabled={Boolean(acting)}
                   style={{
                     padding: '8px 20px', borderRadius: 8, border: 'none',
@@ -797,7 +856,7 @@ If you have already paid or need assistance, reply here or contact us at +92 329
                     {/* Approve button (opens approval modal) */}
                     {item.normalizedStatus !== 'approved' && (
                       <button
-                        onClick={() => setApproveTarget(item)}
+                        onClick={() => openApproveModal(item)}
                         disabled={!!acting}
                         title="Approve payment & send LMS/Community confirmation WhatsApp"
                         style={{
@@ -819,7 +878,7 @@ If you have already paid or need assistance, reply here or contact us at +92 329
                     {/* Reject button (opens reject modal with reason input field) */}
                     {item.normalizedStatus !== 'rejected' && (
                       <button
-                        onClick={() => { setRejectTarget(item); setRejectReason(''); }}
+                        onClick={() => openRejectModal(item)}
                         disabled={!!acting}
                         title="Reject payment & specify reason to send on WhatsApp"
                         style={{
