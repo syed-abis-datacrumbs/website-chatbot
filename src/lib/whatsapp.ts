@@ -74,6 +74,34 @@ export async function sendWhatsAppMessage(to: string, text: string) {
   );
 }
 
+export async function sendWhatsAppTemplate(
+  to: string,
+  templateName: string,
+  parameters: string[] = [],
+  languageCode: string = 'en'
+) {
+  const payload: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+    },
+  };
+
+  if (parameters.length > 0) {
+    (payload.template as Record<string, unknown>).components = [
+      {
+        type: 'body',
+        parameters: parameters.map(text => ({ type: 'text', text })),
+      },
+    ];
+  }
+
+  await axios.post(apiUrl('/messages'), payload, { headers: headers() });
+}
+
 export async function downloadWhatsAppMedia(
   mediaId: string,
 ): Promise<{ buffer: Buffer; mimeType: string }> {

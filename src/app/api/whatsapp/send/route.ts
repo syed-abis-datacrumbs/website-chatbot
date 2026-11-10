@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendWhatsAppMessage, sendWhatsAppDocument } from '@/lib/whatsapp';
+import { sendWhatsAppMessage, sendWhatsAppDocument, sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { saveMessage, saveContactProfile } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
@@ -26,16 +26,36 @@ Quick question to ensure this batch is the right fit: What is your educational b
 
     console.log(`[whatsapp/send] Received bootcamp lead: ${studentName} (${to}) - Email: ${studentEmail || 'none'} - Goal: ${studentGoal}`);
 
+    const templateName = process.env.WHATSAPP_BOOTCAMP_TEMPLATE || 'bootcamp_lead_welcome';
     try {
-      await sendWhatsAppMessage(to, msg1);
-      console.log(`[whatsapp/send] Message 1 dispatched successfully to ${to}`);
+      // First try approved WhatsApp Template (required by Meta for cold/new form leads outside 24h window)
+      try {
+        await sendWhatsAppTemplate(to, templateName, [studentName], 'en');
+        console.log(`[whatsapp/send] Template '${templateName}' (en) dispatched successfully to ${to}`);
+      } catch (tmplErr: unknown) {
+        const axErr = tmplErr as { response?: { data?: { error?: { code?: number; error_subcode?: number } } } };
+        // If 'en' fails due to language mismatch, try 'en_US'
+        if (axErr?.response?.data?.error?.code === 132001 || axErr?.response?.data?.error?.error_subcode === 2388043) {
+          console.warn(`[whatsapp/send] Template not found with code 'en', trying 'en_US'...`);
+          await sendWhatsAppTemplate(to, templateName, [studentName], 'en_US');
+          console.log(`[whatsapp/send] Template '${templateName}' (en_US) dispatched successfully to ${to}`);
+        } else {
+          throw tmplErr;
+        }
+      }
     } catch (err: unknown) {
-      const axErr = err as { response?: { status?: number; data?: unknown }; message?: string };
-      console.error('[whatsapp/send] Meta API error sending Message 1:', JSON.stringify(axErr?.response?.data ?? axErr?.message ?? err, null, 2));
-      return NextResponse.json({
-        error: 'Failed to send WhatsApp message via Meta API',
-        details: axErr?.response?.data ?? axErr?.message,
-      }, { status: 500 });
+      console.warn('[whatsapp/send] Template dispatch failed, falling back to direct text message:', (err as { response?: { data?: unknown } })?.response?.data ?? (err as Error)?.message);
+      try {
+        await sendWhatsAppMessage(to, msg1);
+        console.log(`[whatsapp/send] Fallback text message dispatched successfully to ${to}`);
+      } catch (fallbackErr: unknown) {
+        const axErr = fallbackErr as { response?: { status?: number; data?: unknown }; message?: string };
+        console.error('[whatsapp/send] Meta API error sending Message 1:', JSON.stringify(axErr?.response?.data ?? axErr?.message ?? fallbackErr, null, 2));
+        return NextResponse.json({
+          error: 'Failed to send WhatsApp message via Meta API',
+          details: axErr?.response?.data ?? axErr?.message,
+        }, { status: 500 });
+      }
     }
 
     // Save message history in MongoDB (visible in agent.datacrumbs.org/chats)
