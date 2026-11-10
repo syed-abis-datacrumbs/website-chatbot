@@ -453,12 +453,17 @@ export async function getEnrollmentsFromSheet(): Promise<SheetEnrollment[]> {
 
 // Counts for the sidebar nav badges — Leads/Enrollments reflect the sheet, not MongoDB
 export async function getSheetNavCounts(): Promise<{ leads: number; enrollments: number }> {
-  const sheets = google.sheets({ version: 'v4', auth: auth() });
-  const [leadsRes, enrollRes] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: tabRange(LEADS_TAB, 'E2:E') }),
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: tabRange(SHEET_TAB, 'C2:C') }),
-  ]);
-  const leads       = (leadsRes.data.values ?? []).filter(r => r[0]).length;
-  const enrollments = (enrollRes.data.values ?? []).filter(r => r[0]).length;
-  return { leads, enrollments };
+  try {
+    const sheets = google.sheets({ version: 'v4', auth: auth() });
+    const [leadsRes, enrollRes] = await Promise.all([
+      sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: tabRange(LEADS_TAB, 'E2:E') }).catch(() => ({ data: { values: [] } })),
+      sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: tabRange(SHEET_TAB, 'C2:C') }).catch(() => ({ data: { values: [] } })),
+    ]);
+    const leads       = (leadsRes.data.values ?? []).filter(r => r[0]).length;
+    const enrollments = (enrollRes.data.values ?? []).filter(r => r[0]).length;
+    return { leads, enrollments };
+  } catch (err) {
+    console.warn('[google/getSheetNavCounts] Failed to fetch nav counts:', err instanceof Error ? err.message : err);
+    return { leads: 0, enrollments: 0 };
+  }
 }

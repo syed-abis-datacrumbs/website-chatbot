@@ -657,6 +657,19 @@ export async function POST(req: NextRequest) {
   after(async () => {
     try {
       const value = body?.entry?.[0]?.changes?.[0]?.value;
+
+      // Log delivery statuses (sent, delivered, read, failed) from Meta
+      const statuses = value?.statuses;
+      if (Array.isArray(statuses) && statuses.length > 0) {
+        for (const s of statuses) {
+          if (s.status === 'failed') {
+            console.error(`[webhook/status] ❌ WhatsApp delivery FAILED for ${s.recipient_id}:`, JSON.stringify(s.errors ?? s));
+          } else {
+            console.log(`[webhook/status] ℹ️ Message status for ${s.recipient_id}: ${s.status}`);
+          }
+        }
+      }
+
       const message = value?.messages?.[0];
       if (!message) return;
 
