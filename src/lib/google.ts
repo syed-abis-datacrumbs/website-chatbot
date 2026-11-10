@@ -8,6 +8,11 @@ const DISCOUNT_TAB      = process.env.GOOGLE_SHEET_TAB_DISCOUNT ?? 'Discount';
 const LEADS_TAB         = process.env.GOOGLE_SHEET_TAB_LEADS ?? 'agent leads';
 const DEMO_TAB          = process.env.GOOGLE_SHEET_TAB_DEMO ?? 'Demo';
 
+function tabRange(tab: string, range: string): string {
+  // Always wrap tab names in quotes to handle spaces e.g. 'Payment info bot'!A1:F1
+  return `'${tab.replace(/'/g, "\\'")}'!${range}`;
+}
+
 function auth() {
   return new google.auth.JWT({
     email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -78,13 +83,13 @@ export async function ensureSheetHeaders(): Promise<void> {
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${SHEET_TAB}!A1:F1`,
+    range: tabRange(SHEET_TAB, 'A1:F1'),
   });
 
   if (!res.data.values?.length) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_TAB}!A1`,
+      range: tabRange(SHEET_TAB, 'A1'),
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [['Name', 'Email', 'Phone', 'Submitted (PKT)', 'Screenshot', 'Status']],
@@ -117,7 +122,7 @@ export async function appendEnrollmentRow(data: {
 
   const res = await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${SHEET_TAB}!A:F`,
+    range: tabRange(SHEET_TAB, 'A:F'),
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });
@@ -141,12 +146,12 @@ export async function appendDiscountRow(data: {
   // Ensure headers exist
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${tab}!A1:F1`,
+    range: tabRange(tab, 'A1:F1'),
   });
   if (!res.data.values?.length) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `${tab}!A1`,
+      range: tabRange(tab, 'A1'),
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [['Name', 'Email', 'Phone', 'Message', 'Submitted (PKT)', 'Comment']] },
     });
@@ -154,7 +159,7 @@ export async function appendDiscountRow(data: {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${tab}!A:F`,
+    range: tabRange(tab, 'A:F'),
     valueInputOption: 'USER_ENTERED',
     requestBody: {
       values: [[
@@ -179,7 +184,7 @@ export async function updateDiscountRowComment(phone: string, comment: string): 
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${tab}!A:F`,
+    range: tabRange(tab, 'A:F'),
   });
   const rows = res.data.values ?? [];
 
@@ -189,7 +194,7 @@ export async function updateDiscountRowComment(phone: string, comment: string): 
       const rowNumber = i + 1;
       await sheets.spreadsheets.values.update({
         spreadsheetId: SHEET_ID,
-        range: `${tab}!F${rowNumber}`,
+        range: tabRange(tab, `F${rowNumber}`),
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: [[comment]] },
       });
@@ -212,12 +217,12 @@ export async function appendDemoRow(data: {
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${tab}!A1:E1`,
+    range: tabRange(tab, 'A1:E1'),
   });
   if (!res.data.values?.length) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `${tab}!A1`,
+      range: tabRange(tab, 'A1'),
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [['Name', 'Email', 'Phone', 'Message', 'Submitted (PKT)']] },
     });
@@ -225,7 +230,7 @@ export async function appendDemoRow(data: {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${tab}!A:E`,
+    range: tabRange(tab, 'A:E'),
     valueInputOption: 'USER_ENTERED',
     requestBody: {
       values: [[
@@ -264,7 +269,7 @@ export async function appendLeadRow(data: {
   const sheets = google.sheets({ version: 'v4', auth: auth() });
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${LEADS_TAB}!A:E`,
+    range: tabRange(LEADS_TAB, 'A:E'),
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [formatLeadRow(data.name, data.phone, data.timestamp)] },
   });
@@ -277,7 +282,7 @@ export async function appendLeadRows(
   const sheets = google.sheets({ version: 'v4', auth: auth() });
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${LEADS_TAB}!A:E`,
+    range: tabRange(LEADS_TAB, 'A:E'),
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: rows.map(r => formatLeadRow(r.name, r.phone, r.timestamp)) },
   });
@@ -291,7 +296,7 @@ export async function updateLeadName(phone: string, name: string): Promise<void>
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${LEADS_TAB}!A:E`,
+    range: tabRange(LEADS_TAB, 'A:E'),
   });
   const rows = res.data.values ?? [];
 
@@ -302,7 +307,7 @@ export async function updateLeadName(phone: string, name: string): Promise<void>
       const rowNumber = i + 1;
       await sheets.spreadsheets.values.update({
         spreadsheetId: SHEET_ID,
-        range: `${LEADS_TAB}!C${rowNumber}`,
+        range: tabRange(LEADS_TAB, `C${rowNumber}`),
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: [[name]] },
       });
@@ -317,7 +322,7 @@ export async function updateSheetStatus(rowIndex: number, status: string): Promi
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `${SHEET_TAB}!F${rowIndex}`,
+    range: tabRange(SHEET_TAB, `F${rowIndex}`),
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [[status]] },
   });
@@ -329,7 +334,7 @@ export async function updateEnrollmentSheetStatusByPhone(phone: string, status: 
     const cleanPhone = phone.replace(/\D/g, '');
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_TAB}!A2:F`,
+      range: tabRange(SHEET_TAB, 'A2:F'),
     });
     const rows = res.data.values ?? [];
     for (let i = 0; i < rows.length; i++) {
@@ -338,7 +343,7 @@ export async function updateEnrollmentSheetStatusByPhone(phone: string, status: 
         const rowNum = i + 2;
         await sheets.spreadsheets.values.update({
           spreadsheetId: SHEET_ID,
-          range: `${SHEET_TAB}!F${rowNum}`,
+          range: tabRange(SHEET_TAB, `F${rowNum}`),
           valueInputOption: 'USER_ENTERED',
           requestBody: { values: [[status]] },
         });
@@ -361,7 +366,7 @@ export async function getLeadsFromSheet(): Promise<SheetLead[]> {
   const sheets = google.sheets({ version: 'v4', auth: auth() });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${LEADS_TAB}!A2:F`,
+    range: tabRange(LEADS_TAB, 'A2:F'),
   });
   const rows = res.data.values ?? [];
   return rows
@@ -384,7 +389,7 @@ export async function getDiscountRequestsFromSheet(): Promise<SheetDiscountReque
   const sheets = google.sheets({ version: 'v4', auth: auth() });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${DISCOUNT_TAB}!A2:F`,
+    range: tabRange(DISCOUNT_TAB, 'A2:F'),
   });
   const rows = res.data.values ?? [];
   return rows
@@ -407,7 +412,7 @@ export async function getDemoRequestsFromSheet(): Promise<SheetDemoRequest[]> {
   const sheets = google.sheets({ version: 'v4', auth: auth() });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${DEMO_TAB}!A2:E`,
+    range: tabRange(DEMO_TAB, 'A2:E'),
   });
   const rows = res.data.values ?? [];
   return rows
@@ -430,7 +435,7 @@ export async function getEnrollmentsFromSheet(): Promise<SheetEnrollment[]> {
   const sheets = google.sheets({ version: 'v4', auth: auth() });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${SHEET_TAB}!A2:F`,
+    range: tabRange(SHEET_TAB, 'A2:F'),
   });
   const rows = res.data.values ?? [];
   return rows
@@ -450,8 +455,8 @@ export async function getEnrollmentsFromSheet(): Promise<SheetEnrollment[]> {
 export async function getSheetNavCounts(): Promise<{ leads: number; enrollments: number }> {
   const sheets = google.sheets({ version: 'v4', auth: auth() });
   const [leadsRes, enrollRes] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `${LEADS_TAB}!E2:E` }),
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `${SHEET_TAB}!C2:C` }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: tabRange(LEADS_TAB, 'E2:E') }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: tabRange(SHEET_TAB, 'C2:C') }),
   ]);
   const leads       = (leadsRes.data.values ?? []).filter(r => r[0]).length;
   const enrollments = (enrollRes.data.values ?? []).filter(r => r[0]).length;

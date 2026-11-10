@@ -8,12 +8,81 @@ declare global {
   var _mongoClient: MongoClient | undefined;
 }
 
-async function getDb(): Promise<Db> {
-  if (!global._mongoClient) {
-    global._mongoClient = new MongoClient(uri);
-    await global._mongoClient.connect();
+function isTopologyClosed(client?: MongoClient): boolean {
+  if (!client) return true;
+  try {
+    const topology = (client as unknown as { topology?: { isDestroyed?: () => boolean; isClosed?: () => boolean; s?: { state?: string } } }).topology;
+    if (!topology) return true;
+    if (typeof topology.isDestroyed === 'function' && topology.isDestroyed()) return true;
+    if (typeof topology.isClosed === 'function' && topology.isClosed()) return true;
+    const state = topology.s?.state;
+    if (state === 'closed' || state === 'destroying' || state === 'destroyed') return true;
+    return false;
+  } catch {
+    return true;
   }
+}
+
+async function getDb(): Promise<Db> {
+  if (!global._mongoClient || isTopologyClosed(global._mongoClient)) {
+    if (global._mongoClient) {
+      try {
+        await global._mongoClient.close(true);
+      } catch {
+        // ignore close error
+      }
+      global._mongoClient = undefined;
+    }
+
+    const client = new MongoClient(uri, {
+      maxPoolSize: 10,
+      minPoolSize: 0,
+      maxIdleTimeMS: 30000,
+      serverSelectionTimeoutMS: 8000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000,
+    });
+
+    client.on('close', () => {
+      console.warn('[MongoDB] Connection closed by remote/Atlas. Clearing cached client.');
+      if (global._mongoClient === client) {
+        global._mongoClient = undefined;
+      }
+    });
+
+    client.on('error', (err) => {
+      console.warn('[MongoDB] Client error event:', err?.message);
+      if (global._mongoClient === client) {
+        global._mongoClient = undefined;
+      }
+    });
+
+    await client.connect();
+    global._mongoClient = client;
+  }
+
   return global._mongoClient.db('datacrumbs_chatbot');
+}
+
+export async function withMongoRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err: unknown) {
+    const isClosed = err instanceof Error && (
+      err.name === 'MongoTopologyClosedError' ||
+      err.message.includes('Topology is closed') ||
+      err.message.includes('Client must be connected')
+    );
+    if (isClosed) {
+      console.warn('[MongoDB] Topology closed detected during operation. Reconnecting and retrying...');
+      if (global._mongoClient) {
+        try { await global._mongoClient.close(true); } catch {}
+        global._mongoClient = undefined;
+      }
+      return await fn();
+    }
+    throw err;
+  }
 }
 
 export interface ChatMessage {
