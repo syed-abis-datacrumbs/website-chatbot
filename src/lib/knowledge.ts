@@ -34,26 +34,27 @@ What is included:
     id: 'curriculum-early',
     topic: 'Curriculum Weeks 1 to 8',
     text: `16-Week Curriculum (First Half):
-- Weeks 1-2: Python & AI Tools Foundations
-- Weeks 3-4: Python for Data (NumPy, Pandas)
-- Weeks 5-6: AI & Machine Learning Fundamentals
-- Weeks 7-8: AI & ML Projects (hands-on)`,
+- Weeks 01-02: AI Web Development (Antigravity & Lovable, Prompting for Code, React Fundamentals, Vercel Cloud Deployments, Modern Dashboards)
+- Weeks 03-04: AI Backends & Cloud Databases (AI Database Architecture, Schema Design, User Auth & Session Security, Row-Level Security RLS, Dynamic CRM Backends, Next.js Pipelines)
+- Weeks 05-06: Generative AI / N8N (Foundation Models, Gemini/OpenAI/DeepSeek, Prompt Engineering, Multimodal AI, RAG, LangChain, n8n Automation)
+- Weeks 07-08: Core LLMs & Autonomous AI Agents (Token Optimization, Persona Design & Guardrails, Structured Outputs, eCommerce Sales Agents, HR Hiring Agents)`,
   },
   {
     id: 'curriculum-late',
     topic: 'Curriculum Weeks 9 to 16',
     text: `16-Week Curriculum (Second Half):
-- Weeks 9-10: N8N Automation Foundations
-- Weeks 11-12: GenAI Apps & Agentic Workflows (LangChain, OpenAI, Gemini, Claude)
-- Weeks 13-14: Deep Learning (TensorFlow)
-- Weeks 15-16: Portfolio, Deployment & Career Support`,
+- Weeks 09-10: Agentic AI Tools, Memory & MCP (Tool Calling, Real-Time Database Querying, Memory Buffers, Model Context Protocol MCP Standards, Custom MCP Servers)
+- Weeks 11-12: Agentic AI & Autonomous Systems (Production Vector RAG, Whisper Voice & Vision Assistants, Cron Job Agents, Multi-Agent Orchestration & Supervisors)
+- Weeks 13-14: Freelancing & Client Acquisition (AI Portfolio, Personal Branding, ICP Research, Cold Outreach, Proposal Writing, Retainer Pricing)
+- Weeks 15-16: Portfolio, Deployment & Career Support (15+ AI Projects Deployed, Guaranteed 1-Month Industry Internship, CV Crafting, Mock Interviews)`,
   },
   {
     id: 'tech-stack',
     topic: 'Technologies and Tools Taught',
     text: `Full tech stack covered in the bootcamp:
-Python, NumPy, Pandas, Scikit-learn, Matplotlib, Streamlit, Git,
-N8N, LangChain, Gemini, OpenAI, TensorFlow, Power BI, SQL, Claude`,
+Antigravity, Lovable, React, Next.js, Vercel, Supabase, Python,
+n8n Automation, Model Context Protocol (MCP), LangChain, Gemini, OpenAI, DeepSeek,
+Vector Databases (Pinecone/ChromaDB), Whisper Voice AI, Claude`,
   },
   {
     id: 'career-outcomes',
@@ -149,7 +150,7 @@ Keywords that trigger brochure: brochure, pdf, syllabus, details, course outline
 
 export const WELCOME_GREETING = `Hi there! 👋 I'm Zoya from DataCrumbs.
 
-Excited to share that our 4-Month AI & Data Science Bootcamp starts on 16th August! You'll master Python, SQL, Power BI, LLMs, Agentic AI & n8n Automation, plus get a guaranteed 1-2 month internship 🚀
+Excited to share that admissions are currently open for our upcoming 16-Week AI & Data Science Bootcamp! You'll master AI Web Development, Core LLMs, Agentic AI, MCP standards, and n8n Automation, plus get a guaranteed 1-month internship 🚀
 
 Join our student communities to explore real discussions before enrolling:
 💬 Personal Branding Discussion: https://chat.whatsapp.com/KtDYgzpc7uQKE3GvQi1WFi
@@ -157,12 +158,12 @@ Join our student communities to explore real discussions before enrolling:
 
 How can I assist you today?
 • Curriculum & Projects
-• Class Schedule & Fee Plan (Rs. 7,499/mo)
+• Class Schedule & Fee Plan (Rs. 7,500)
 • Guaranteed Internship & Job Support`;
 
 export const CORE_SYSTEM_PROMPT = `You are Zoya, a smart, friendly, and professional sales & support assistant for DataCrumbs — an AI-driven career transformation platform based in Karachi, Pakistan.
 
-Your primary job is to answer questions about the DataCrumbs AI & Data Science Bootcamp, as well as AI/Data Science career scope, technology relevance (Python, SQL, Power BI, LLMs, n8n Automation), and job opportunities. You ARE allowed and encouraged to explain the scope, importance, and applications of Python, AI, and Data Science in the industry, while connecting your answer back to how our bootcamp equips students with these skills. Do NOT answer completely unrelated off-topic subjects (like movies, cooking, or general trivia). If asked something completely off-topic, politely redirect the user back.
+Your primary job is to answer questions about the DataCrumbs AI & Data Science Bootcamp, as well as AI/Data Science career scope, technology relevance (Python, React, AI Coding Assistants, Supabase, LLMs, Agentic AI, MCP, n8n Automation), and job opportunities. You ARE allowed and encouraged to explain the scope, importance, and applications of AI and Agentic Systems in the industry, while connecting your answer back to how our bootcamp equips students with these skills. Do NOT answer completely unrelated off-topic subjects (like movies, cooking, or general trivia). If asked something completely off-topic, politely redirect the user back.
 
 Islamic Greeting Rule:
 If the user says "Assalamu Alaikum", "Assallamo Allikum", "AOA", or any variation of the Islamic greeting, ALWAYS respond with "Wa Alaikum Assalam" — never repeat their greeting back to them or say "Assalam o Alaikum" yourself.
@@ -176,12 +177,12 @@ When it IS a pure greeting (no question), respond with:
 Key Class & Program Details:
 - Representative Name: Zoya from DataCrumbs
 - Physical Address: 504, Amber Estate, Shahrah-e-Faisal, Karachi
-- First Class / Start Date: 16th August (4-Month Bootcamp)
-- Class Schedule & Timings: Saturday and Sunday, 4:00 PM – 5:30 PM
+- Batch Status & Start Date: Admissions are currently open for the upcoming cohort. Seats are strictly limited to 30 students for 1-on-1 mentorship. Never cite any past batch dates (like August). Always emphasize that registrations are currently open.
+- Class Schedule & Timings: Weekends (Saturday and Sunday)
 - Value Philosophy: We believe in delivering a premium learning experience at a minimum cost without compromising on quality.
-- Duration: 4 Months (16 Weeks)
-- Registration & Enrollment: Done directly in this chat (Zoya collects full name & email), no external form required.
-- Application / Bootcamp Info: https://www.datacrumbs.org/ai-and-datascience
+- Duration: 4 Months (16 Weeks) + 1-Month Guaranteed Internship
+- Registration & Enrollment: Done directly in this chat or via the website form.
+- Application / Bootcamp Info: https://www.datacrumbs.org/ai-bootcamp
 - Human Support Contact: +92 329 2020497
 - Careers / Job Inquiries: We only hire students who are part of our program. If someone asks for a job or wants to send their resume, instruct them to apply at careers@datacrumbs.org.
 

@@ -67,6 +67,11 @@ export interface ContactProfile {
   hasSubmittedDemoRequest?: boolean;
   // True right after we've sent a "you're welcome, anything else?" style closing reply
   lastReplyWasClosing?: boolean;
+  // Automated AI Bootcamp Funnel State
+  bootcampLead?: boolean;
+  bootcampGoal?: string;
+  bootcampLeadPending?: boolean; // Waiting for student's background/current role reply
+  bootcampBackground?: string;
 }
 
 export async function getContactProfile(phone: string): Promise<ContactProfile | null> {

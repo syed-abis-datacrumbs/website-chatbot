@@ -53,6 +53,31 @@ Fee: *${process.env.PAYMENT_FEE ?? 'Rs. 7,499/month'}*
 Once you've paid, please send a *screenshot* here and we'll verify it and get you enrolled! ✅`;
 }
 
+function buildBootcampPaymentMsg() {
+  const bankName = process.env.PAYMENT_BANK_NAME || 'HabibMetro Bank';
+  const bankTitle = process.env.PAYMENT_BANK_TITLE || 'Data Crumbs';
+  const iban = process.env.PAYMENT_BANK_IBAN || 'PK61 MPBL 0165 0271 4028 0184';
+  const accountNum = process.env.PAYMENT_BANK_ACCOUNT || '6016520311714280184';
+  const walletNum = process.env.PAYMENT_WALLET_NUMBER || '0336-2507273';
+  const walletTitle = process.env.PAYMENT_WALLET_TITLE || 'Abis Hussain Syed';
+
+  return `That's great! We actually have several non-CS graduates and professionals making the switch in this cohort, because we start right from Python fundamentals before building live AI Agents and RAG systems.
+
+Our live classes are on *Weekends (Saturday, Sunday)*, and seats are capped at 30 students for 1-on-1 mentorship.
+
+To confirm your registration and lock in your seat for the batch, you can submit the initial deposit of Rs 7,500 below:
+
+🏦 *Bank:* ${bankName}
+*Account Title:* ${bankTitle}
+*IBAN:* ${iban}
+*Account Number:* ${accountNum}
+
+📱 *Easypaisa / JazzCash / Raast:* ${walletNum}
+*Account Title:* ${walletTitle}
+
+Once sent, just share the payment screenshot here and I will issue your official Student Roll Number & Orientation Invite! 🎓`;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const EMAIL_RE = /[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+/;
@@ -650,6 +675,39 @@ export async function POST(req: NextRequest) {
 
       // Conversation context — fetched once and reused by every branch below
       const recentMsgs = msgType === 'text' ? await getRecentMessagesByPhone(from, 10) : [];
+
+      // ── 0a2. Automated AI Bootcamp Funnel: Message 2 ─────────────────────
+      if (msgType === 'text' && contactProfile?.bootcampLeadPending) {
+        const background = text.trim();
+
+        // 1. Save student's background and advance state
+        await saveContactProfile({
+          phone: from,
+          bootcampLeadPending: false,
+          bootcampBackground: background,
+        });
+
+        // 2. Set up enrollment session awaiting screenshot
+        await saveEnrollmentSession({
+          phone: from,
+          name: contactProfile?.name || explicitName || 'Student',
+          state: 'awaiting_screenshot',
+          updatedAt: Date.now(),
+        });
+
+        // 3. Build and send Message 2 (Class schedule + Payment details)
+        const msg2 = buildBootcampPaymentMsg();
+        await sendWhatsAppMessage(from, msg2);
+
+        // 4. Save to MongoDB (visible in agent.datacrumbs.org/chats)
+        await saveMessage({
+          from,
+          text,
+          reply: msg2,
+          timestamp: Date.now(),
+        });
+        return;
+      }
 
       // ── 0b2. Discount offer confirmation ─────────────────────────────────
       // We've asked "should I forward this to management?" — wait for a clear
