@@ -19,6 +19,14 @@ const NEON = '#5ce46d';
 const GLASS = 'linear-gradient(180deg, rgba(20,29,25,0.85) 0%, rgba(13,20,17,0.95) 100%)';
 const BORDER = '1px solid #202d26';
 
+const PRESET_REASONS = [
+  'Screenshot is blurry or illegible',
+  'Transaction ID / Ref number not visible',
+  'Fee amount does not match Rs 7,499 / 7,500',
+  'Account title does not match Data Crumbs / HabibMetro / JazzCash',
+  'Duplicate or already submitted receipt',
+];
+
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<PaymentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +35,11 @@ export default function PaymentsPage() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Modals state
+  const [rejectTarget, setRejectTarget] = useState<PaymentItem | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [approveTarget, setApproveTarget] = useState<PaymentItem | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -53,13 +66,17 @@ export default function PaymentsPage() {
     load();
   }, [load]);
 
-  async function changeStatus(phone: string, status: 'approved' | 'rejected' | 'pending') {
+  async function executeStatusChange(
+    phone: string,
+    status: 'approved' | 'rejected' | 'pending',
+    reason?: string,
+  ) {
     setActing(phone + status);
     try {
       const res = await fetch(`/api/enrollments/${encodeURIComponent(phone)}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, reason }),
       });
 
       if (!res.ok) {
@@ -72,7 +89,7 @@ export default function PaymentsPage() {
           const displayStatus = status === 'approved'
             ? 'Approved ✅'
             : status === 'rejected'
-            ? 'Rejected ❌'
+            ? (reason ? `Rejected ❌ (${reason})` : 'Rejected ❌')
             : 'Pending Verification';
           return {
             ...item,
@@ -84,7 +101,12 @@ export default function PaymentsPage() {
       }));
 
       const statusLabel = status === 'approved' ? 'Approved' : status === 'rejected' ? 'Rejected' : 'Set to Pending';
-      showToast(`Status updated to "${statusLabel}" for +${phone}. WhatsApp update sent!`);
+      showToast(`Status updated to "${statusLabel}" for +${phone}. WhatsApp notification sent!`);
+      
+      // Close any open modals
+      setRejectTarget(null);
+      setRejectReason('');
+      setApproveTarget(null);
     } catch (err) {
       console.error('Status change error:', err);
       showToast('Failed to update status', 'error');
@@ -147,7 +169,206 @@ export default function PaymentsPage() {
           </div>
         )}
 
-        {/* Header */}
+        {/* ── Approval Confirmation Modal ─────────────────────────────────────── */}
+        {approveTarget && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 10000,
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          }}>
+            <div style={{
+              background: '#0e1612', border: `1px solid ${NEON}44`, borderRadius: 16,
+              width: '100%', maxWidth: 540, padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 22 }}>🎓</span>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: 0 }}>
+                    Approve Payment & Confirm Seat
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setApproveTarget(null)}
+                  style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: 18, cursor: 'pointer' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 16 }}>
+                You are approving the payment for <strong style={{ color: '#fff' }}>{approveTarget.name}</strong> (+{approveTarget.phone}).
+              </div>
+
+              {/* Message preview */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: NEON, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  💬 WhatsApp Message Preview (will be sent automatically):
+                </div>
+                <div style={{
+                  background: 'rgba(20,45,30,0.5)', border: '1px solid rgba(92,228,109,0.25)',
+                  borderRadius: 10, padding: 14, fontSize: 12, color: '#d1d5db', lineHeight: 1.5,
+                  whiteSpace: 'pre-line',
+                }}>
+                  {`🎉 *Payment Verified & Enrollment Confirmed!*
+
+Assalam-o-Alaikum ${approveTarget.name}, your payment has been *verified* and your seat in the DataCrumbs AI & Data Science Bootcamp is *officially confirmed*! 🎓
+
+Here are your onboarding links:
+1. Create your student account on our LMS:
+   🔗 https://lms.datacrumbs.org
+2. Join the Official Student Community:
+   💬 https://chat.whatsapp.com/Hu6jC1O0LrhBs9WesBlqFT
+
+Welcome to DataCrumbs! Our team will share your orientation schedule right here shortly. 🚀`}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  onClick={() => setApproveTarget(null)}
+                  disabled={Boolean(acting)}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, border: BORDER,
+                    background: 'transparent', color: '#9ca3af', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => executeStatusChange(approveTarget.phone, 'approved')}
+                  disabled={Boolean(acting)}
+                  style={{
+                    padding: '8px 20px', borderRadius: 8, border: 'none',
+                    background: NEON, color: '#090d0b', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  }}
+                >
+                  {acting ? 'Approving & Sending…' : 'Approve & Send WhatsApp ✅'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Rejection Reason Modal ─────────────────────────────────────────── */}
+        {rejectTarget && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 10000,
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+          }}>
+            <div style={{
+              background: '#160e0e', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 16,
+              width: '100%', maxWidth: 560, padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>❌</span>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: 0 }}>
+                    Reject Payment Receipt
+                  </h2>
+                </div>
+                <button
+                  onClick={() => { setRejectTarget(null); setRejectReason(''); }}
+                  style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: 18, cursor: 'pointer' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 16 }}>
+                Rejecting receipt for <strong style={{ color: '#fff' }}>{rejectTarget.name}</strong> (+{rejectTarget.phone}). Specify the reason so the student knows what to fix.
+              </div>
+
+              {/* Preset Reason Chips */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Quick Select Reason:
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {PRESET_REASONS.map(r => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setRejectReason(r)}
+                      style={{
+                        padding: '4px 10px', borderRadius: 20,
+                        border: rejectReason === r ? '1px solid #f87171' : '1px solid rgba(255,255,255,0.1)',
+                        background: rejectReason === r ? 'rgba(248,113,113,0.2)' : 'rgba(255,255,255,0.03)',
+                        color: rejectReason === r ? '#fca5a5' : '#9ca3af',
+                        fontSize: 11, cursor: 'pointer', transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rejection Reason Input Field */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#f87171', marginBottom: 6 }}>
+                  Rejection Reason (Input field):
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Transaction ID is blurry, or amount does not match Rs 7,499"
+                  value={rejectReason}
+                  onChange={e => setRejectReason(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 14px', borderRadius: 8,
+                    border: '1px solid rgba(248,113,113,0.4)', background: '#0d0808',
+                    color: '#fff', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+
+              {/* WhatsApp message preview */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  💬 WhatsApp Message Preview:
+                </div>
+                <div style={{
+                  background: 'rgba(40,15,15,0.6)', border: '1px solid rgba(248,113,113,0.25)',
+                  borderRadius: 10, padding: 12, fontSize: 12, color: '#d1d5db', lineHeight: 1.4,
+                  whiteSpace: 'pre-line',
+                }}>
+                  {`Assalam-o-Alaikum ${rejectTarget.name},
+
+Our admissions team reviewed your payment screenshot, but we could not verify your transaction.${rejectReason ? `\n\n👉 *Reason:* ${rejectReason}` : ''}
+
+Please send a clear screenshot showing the transaction ID, date, and fee amount (Rs 7,499 / 7,500) so we can verify and confirm your seat.
+
+If you have already paid or need assistance, reply here or contact us at +92 329 2020497.`}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  onClick={() => { setRejectTarget(null); setRejectReason(''); }}
+                  disabled={Boolean(acting)}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, border: BORDER,
+                    background: 'transparent', color: '#9ca3af', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => executeStatusChange(rejectTarget.phone, 'rejected', rejectReason)}
+                  disabled={Boolean(acting)}
+                  style={{
+                    padding: '8px 20px', borderRadius: 8, border: 'none',
+                    background: '#f87171', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  }}
+                >
+                  {acting ? 'Rejecting & Sending…' : 'Send Rejection Message ❌'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Top Header ─────────────────────────────────────────────────────── */}
         <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -173,7 +394,7 @@ export default function PaymentsPage() {
               )}
             </div>
             <p style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>
-              Review student payment screenshots, manage approval status, and trigger WhatsApp notifications.
+              Admissions team reviews receipts and manages approvals. Approving or rejecting instantly triggers a WhatsApp update with custom reasons.
             </p>
           </div>
 
@@ -215,7 +436,7 @@ export default function PaymentsPage() {
           </div>
         </div>
 
-        {/* Metric KPI Cards */}
+        {/* ── Metric KPI Cards ─────────────────────────────────────────────────── */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -315,7 +536,7 @@ export default function PaymentsPage() {
           </div>
         </div>
 
-        {/* Filter Tabs & Search Bar */}
+        {/* ── Filter Tabs & Search Bar ─────────────────────────────────────────── */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -405,7 +626,7 @@ export default function PaymentsPage() {
           </div>
         </div>
 
-        {/* Data Table */}
+        {/* ── Data Table ──────────────────────────────────────────────────────── */}
         {loading ? (
           <div style={{ color: '#6b7280', fontSize: 14, paddingTop: 48, textAlign: 'center' }}>
             Loading payments…
@@ -424,7 +645,7 @@ export default function PaymentsPage() {
             {/* Header row */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1.2fr 1.1fr 140px 140px 150px 180px',
+              gridTemplateColumns: '1.2fr 1.1fr 140px 140px 150px 200px',
               padding: '14px 20px',
               background: 'rgba(13,20,17,0.7)',
               borderBottom: '1px solid #1a251f',
@@ -450,7 +671,7 @@ export default function PaymentsPage() {
                   key={item.phone + (item.rowIndex ?? i)}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '1.2fr 1.1fr 140px 140px 150px 180px',
+                    gridTemplateColumns: '1.2fr 1.1fr 140px 140px 150px 200px',
                     padding: '16px 20px',
                     borderBottom: i < filteredPayments.length - 1 ? '1px solid #1a251f' : 'none',
                     alignItems: 'center',
@@ -573,14 +794,14 @@ export default function PaymentsPage() {
 
                   {/* Admin Change Status Actions */}
                   <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                    {/* Approve button (available if not approved) */}
+                    {/* Approve button (opens approval modal) */}
                     {item.normalizedStatus !== 'approved' && (
                       <button
-                        onClick={() => changeStatus(item.phone, 'approved')}
+                        onClick={() => setApproveTarget(item)}
                         disabled={!!acting}
                         title="Approve payment & send LMS/Community confirmation WhatsApp"
                         style={{
-                          padding: '5px 10px',
+                          padding: '5px 12px',
                           borderRadius: 6,
                           border: `1px solid ${NEON}`,
                           background: 'rgba(92,228,109,0.08)',
@@ -591,18 +812,18 @@ export default function PaymentsPage() {
                           opacity: isActing ? 0.5 : 1,
                         }}
                       >
-                        {acting === item.phone + 'approved' ? '…' : 'Approve'}
+                        Approve
                       </button>
                     )}
 
-                    {/* Reject button (available if not rejected) */}
+                    {/* Reject button (opens reject modal with reason input field) */}
                     {item.normalizedStatus !== 'rejected' && (
                       <button
-                        onClick={() => changeStatus(item.phone, 'rejected')}
+                        onClick={() => { setRejectTarget(item); setRejectReason(''); }}
                         disabled={!!acting}
-                        title="Reject payment & request clearer screenshot on WhatsApp"
+                        title="Reject payment & specify reason to send on WhatsApp"
                         style={{
-                          padding: '5px 10px',
+                          padding: '5px 12px',
                           borderRadius: 6,
                           border: '1px solid rgba(248,113,113,0.4)',
                           background: 'rgba(248,113,113,0.08)',
@@ -613,14 +834,14 @@ export default function PaymentsPage() {
                           opacity: isActing ? 0.5 : 1,
                         }}
                       >
-                        {acting === item.phone + 'rejected' ? '…' : 'Reject'}
+                        Reject
                       </button>
                     )}
 
-                    {/* Reset to Pending button (available if currently approved or rejected) */}
+                    {/* Reset to Pending button */}
                     {item.normalizedStatus !== 'pending' && (
                       <button
-                        onClick={() => changeStatus(item.phone, 'pending')}
+                        onClick={() => executeStatusChange(item.phone, 'pending')}
                         disabled={!!acting}
                         title="Reset status back to Pending Review"
                         style={{

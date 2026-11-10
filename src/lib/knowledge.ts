@@ -199,7 +199,8 @@ Payment & Bank Details to Secure Seat (Rs. 7,499/month):
 - Mobile Wallet (Easypaisa / Jazzcash / NayaPay):
   - Account Title: Abis Hussain Syed
   - Account Number: 0336-2507273
-- Post-Payment Confirmation Message: When a user submits payment receipt/details, respond: "We have received your details and we will confirm it by tomorrow."
+- Post-Payment Confirmation: When a user submits payment receipt/details, respond: "We have received your payment screenshot! Our admissions team is reviewing the payment details and will confirm your seat shortly."
+- Payment Verification: All payment screenshots are manually reviewed and verified by the DataCrumbs admissions team. AI never verifies or auto-approves payments directly. Once our admissions team approves the receipt from the dashboard, the student automatically receives their verified seat confirmation, LMS credentials, and WhatsApp community link.
 - Group Discount: Special 20% discount for groups of 2 or more enrolling together.
 
 Pricing Justification & Discount Policy (Outcome-Based Sales Strategy):

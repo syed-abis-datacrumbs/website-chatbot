@@ -479,7 +479,6 @@ async function runEnrollmentMachine(
         let fileId = '';
         let webViewLink = '';
         let rowIndex = -1;
-        let aiCheck = { isValid: false, reason: '', amount: null as number | null, bankOrWallet: null as string | null, transactionId: null as string | null };
 
         try {
           const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
@@ -489,10 +488,6 @@ async function runEnrollmentMachine(
           );
           fileId = driveRes.fileId;
           webViewLink = driveRes.webViewLink;
-
-          // AI Vision verification with Gemini 2.5 Flash
-          aiCheck = await verifyPaymentReceiptWithAI(buffer, mimeType);
-          console.log('[webhook] AI Payment Verification Result:', aiCheck);
 
           rowIndex = await appendEnrollmentRow({
             name: session.name || 'Student',
@@ -514,42 +509,21 @@ async function runEnrollmentMachine(
           session.sheetRowIndex = rowIndex;
         }
 
+        // State is set to screenshot_received for manual admin review
+        session.state = 'screenshot_received';
+
         const validName = (session.name && looksLikeName(session.name)) ? session.name : null;
         const nameGreeting = validName ? `, *${validName}*` : '';
         const lmsEmailText = session.email ? ` using your registered email (*${session.email}*)` : '';
 
-        if (aiCheck.isValid) {
-          session.state = 'approved';
-          if (rowIndex > 0) {
-            await updateSheetStatus(rowIndex, `Approved (AI Verified ✅ - Rs ${aiCheck.amount || '7,500'})`);
-          }
-          reply = `🎉 *Payment Verified Successfully!*
+        reply = `✅ We've received your payment screenshot! Our admissions team is reviewing the payment details.
 
-Assalam-o-Alaikum${nameGreeting}, your deposit of Rs ${aiCheck.amount || '7,500'} via ${aiCheck.bankOrWallet || 'Bank/Wallet'} has been verified! (Trx ID: ${aiCheck.transactionId || 'Confirmed'}).
-
-Your seat in the *16-Week AI & Data Science Bootcamp* is officially *CONFIRMED*! 🎓
-
-Here are your onboarding steps:
-1. Create your account on our LMS${lmsEmailText}:
-   🔗 https://lms.datacrumbs.org
-2. Join the Official Student Community:
-   💬 https://chat.whatsapp.com/Hu6jC1O0LrhBs9WesBlqFT
-
-Our team will share your official Student Roll Number and orientation details here shortly. Welcome to DataCrumbs! 🚀`;
-        } else {
-          session.state = 'screenshot_received';
-          if (rowIndex > 0) {
-            await updateSheetStatus(rowIndex, `Pending Review ⚠️ (${aiCheck.reason || 'Needs Manual Review'})`);
-          }
-          reply = `✅ We've received your image! Our admissions team is reviewing the payment details.
-
-Once verified, we will confirm your enrollment and send orientation details right here.
+Once verified by our team, we will confirm your enrollment and send your orientation details right here.
 
 In the meantime, please create your student profile on our LMS${lmsEmailText}:
 🔗 https://lms.datacrumbs.org
 
 Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
-        }
       } else if (msgType === 'text' && text.trim()) {
         const isPaymentQuery = /\b(pay|payment|bank|easypaisa|jazzcash|nayapay|account|iban|fee|receipt|ss|screenshot|transfer|paid)\b/i.test(text);
         if (enrollmentSystemPrompt) {
