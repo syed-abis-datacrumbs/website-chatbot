@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import DownloadCsvButton from '@/components/dashboard/DownloadCsvButton';
+import { useTheme } from '@/context/ThemeContext';
+import ThemeToggle from '@/components/dashboard/ThemeToggle';
 
 interface PaymentItem {
   rowIndex?: number;
@@ -16,8 +18,6 @@ interface PaymentItem {
 }
 
 const NEON = '#5ce46d';
-const GLASS = 'linear-gradient(180deg, rgba(20,29,25,0.85) 0%, rgba(13,20,17,0.95) 100%)';
-const BORDER = '1px solid #202d26';
 
 const PRESET_REASONS = [
   'Screenshot is blurry or illegible',
@@ -28,6 +28,7 @@ const PRESET_REASONS = [
 ];
 
 export default function PaymentsPage() {
+  const { isDark } = useTheme();
   const [payments, setPayments] = useState<PaymentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,6 +36,13 @@ export default function PaymentsPage() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const GLASS = isDark
+    ? 'linear-gradient(180deg, rgba(20,29,25,0.85) 0%, rgba(13,20,17,0.95) 100%)'
+    : '#ffffff';
+  const BORDER = `1px solid ${isDark ? '#202d26' : '#e2e8f0'}`;
+  const textCol = isDark ? '#ffffff' : '#0f172a';
+  const textMuted = isDark ? '#9ca3af' : '#64748b';
 
   // Modals state
   const [rejectTarget, setRejectTarget] = useState<PaymentItem | null>(null);
@@ -431,7 +439,7 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
         <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <h1 style={{ fontSize: 28, fontWeight: 700, color: '#fff', margin: 0 }}>
+              <h1 style={{ fontSize: 28, fontWeight: 700, color: textCol, margin: 0 }}>
                 Payments & Verification
               </h1>
               {pendingCount > 0 && (
@@ -452,19 +460,20 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
                 </span>
               )}
             </div>
-            <p style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>
+            <p style={{ fontSize: 13, color: textMuted, marginTop: 4 }}>
               Admissions team reviews receipts and manages approvals. Approving or rejecting instantly triggers a WhatsApp update with custom reasons.
             </p>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <ThemeToggle />
             <button
               onClick={() => load(true)}
               disabled={refreshing || loading}
               style={{
-                background: 'rgba(20,29,25,0.8)',
+                background: isDark ? 'rgba(20,29,25,0.8)' : '#ffffff',
                 border: BORDER,
-                color: '#9ca3af',
+                color: isDark ? '#9ca3af' : '#475569',
                 padding: '8px 14px',
                 borderRadius: 8,
                 fontSize: 12,
@@ -506,21 +515,22 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
           <div
             onClick={() => setFilter('all')}
             style={{
-              background: filter === 'all' ? 'rgba(30,45,38,0.9)' : GLASS,
+              background: filter === 'all' ? (isDark ? 'rgba(30,45,38,0.9)' : '#ecfdf5') : GLASS,
               border: filter === 'all' ? `1px solid ${NEON}` : BORDER,
               borderRadius: 12,
               padding: '16px 20px',
               cursor: 'pointer',
+              boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)',
               transition: 'all 0.15s ease',
             }}
           >
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: textMuted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Total Submissions
             </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#fff', marginTop: 4 }}>
+            <div style={{ fontSize: 28, fontWeight: 700, color: textCol, marginTop: 4 }}>
               {totalCount}
             </div>
-            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: isDark ? '#6b7280' : '#94a3b8', marginTop: 2 }}>
               All payment submissions
             </div>
           </div>
@@ -529,11 +539,12 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
           <div
             onClick={() => setFilter('pending')}
             style={{
-              background: filter === 'pending' ? 'rgba(45,35,20,0.9)' : GLASS,
+              background: filter === 'pending' ? (isDark ? 'rgba(45,35,20,0.9)' : '#fff7ed') : GLASS,
               border: filter === 'pending' ? '1px solid #fb923c' : BORDER,
               borderRadius: 12,
               padding: '16px 20px',
               cursor: 'pointer',
+              boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)',
               transition: 'all 0.15s ease',
             }}
           >
@@ -543,7 +554,7 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
             <div style={{ fontSize: 28, fontWeight: 700, color: '#fb923c', marginTop: 4 }}>
               {pendingCount}
             </div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: textMuted, marginTop: 2 }}>
               Requires admissions action
             </div>
           </div>
@@ -552,21 +563,22 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
           <div
             onClick={() => setFilter('approved')}
             style={{
-              background: filter === 'approved' ? 'rgba(20,45,30,0.9)' : GLASS,
+              background: filter === 'approved' ? (isDark ? 'rgba(20,45,30,0.9)' : '#ecfdf5') : GLASS,
               border: filter === 'approved' ? `1px solid ${NEON}` : BORDER,
               borderRadius: 12,
               padding: '16px 20px',
               cursor: 'pointer',
+              boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)',
               transition: 'all 0.15s ease',
             }}
           >
-            <div style={{ fontSize: 11, fontWeight: 600, color: NEON, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: isDark ? NEON : '#059669', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Approved ✅
             </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: NEON, marginTop: 4 }}>
+            <div style={{ fontSize: 28, fontWeight: 700, color: isDark ? NEON : '#059669', marginTop: 4 }}>
               {approvedCount}
             </div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: textMuted, marginTop: 2 }}>
               Confirmed & LMS invited
             </div>
           </div>
@@ -575,11 +587,12 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
           <div
             onClick={() => setFilter('rejected')}
             style={{
-              background: filter === 'rejected' ? 'rgba(45,20,20,0.9)' : GLASS,
+              background: filter === 'rejected' ? (isDark ? 'rgba(45,20,20,0.9)' : '#fef2f2') : GLASS,
               border: filter === 'rejected' ? '1px solid #f87171' : BORDER,
               borderRadius: 12,
               padding: '16px 20px',
               cursor: 'pointer',
+              boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)',
               transition: 'all 0.15s ease',
             }}
           >
@@ -589,7 +602,7 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
             <div style={{ fontSize: 28, fontWeight: 700, color: '#f87171', marginTop: 4 }}>
               {rejectedCount}
             </div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: textMuted, marginTop: 2 }}>
               Invalid or illegible receipts
             </div>
           </div>
@@ -605,7 +618,7 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
           marginBottom: 16,
         }}>
           {/* Status Filter Tabs */}
-          <div style={{ display: 'flex', gap: 6, background: '#0d1511', padding: 4, borderRadius: 10, border: BORDER }}>
+          <div style={{ display: 'flex', gap: 6, background: isDark ? '#0d1511' : '#ffffff', padding: 4, borderRadius: 10, border: BORDER, boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.04)' }}>
             {(['all', 'pending', 'approved', 'rejected'] as const).map(tab => {
               const active = filter === tab;
               const count = tab === 'all' ? totalCount : tab === 'pending' ? pendingCount : tab === 'approved' ? approvedCount : rejectedCount;
@@ -617,8 +630,8 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
                     padding: '6px 14px',
                     borderRadius: 7,
                     border: 'none',
-                    background: active ? '#1a2821' : 'transparent',
-                    color: active ? '#fff' : '#9ca3af',
+                    background: active ? (isDark ? '#1a2821' : '#ecfdf5') : 'transparent',
+                    color: active ? (isDark ? '#fff' : '#059669') : textMuted,
                     fontSize: 12,
                     fontWeight: active ? 600 : 500,
                     cursor: 'pointer',
@@ -633,8 +646,10 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
                     fontSize: 10,
                     padding: '1px 6px',
                     borderRadius: 10,
-                    background: active ? (tab === 'pending' ? 'rgba(251,146,60,0.3)' : tab === 'approved' ? 'rgba(92,228,109,0.3)' : 'rgba(248,113,113,0.3)') : 'rgba(255,255,255,0.06)',
-                    color: active ? '#fff' : '#6b7280',
+                    background: active
+                      ? (tab === 'pending' ? 'rgba(251,146,60,0.3)' : tab === 'approved' ? 'rgba(92,228,109,0.3)' : 'rgba(248,113,113,0.3)')
+                      : (isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9'),
+                    color: active ? (isDark ? '#fff' : '#0f172a') : (isDark ? '#6b7280' : '#64748b'),
                   }}>
                     {count}
                   </span>
@@ -655,11 +670,12 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
                 padding: '8px 12px 8px 34px',
                 borderRadius: 8,
                 border: BORDER,
-                background: '#0d1511',
-                color: '#fff',
+                background: isDark ? '#0d1511' : '#ffffff',
+                color: textCol,
                 fontSize: 12,
                 outline: 'none',
                 fontFamily: 'inherit',
+                boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.04)',
               }}
             />
             <span style={{ position: 'absolute', left: 11, top: 8, color: '#6b7280', fontSize: 13 }}>
@@ -699,18 +715,18 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
             {search ? 'No payments matching your search.' : filter !== 'all' ? `No ${filter} payments found.` : 'No payment submissions yet.'}
           </div>
         ) : (
-          <div style={{ background: GLASS, border: BORDER, borderRadius: 16, overflow: 'hidden' }}>
+          <div style={{ background: GLASS, border: BORDER, borderRadius: 16, overflow: 'hidden', boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)' }}>
 
             {/* Header row */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: '1.2fr 1.1fr 140px 140px 150px 200px',
               padding: '14px 20px',
-              background: 'rgba(13,20,17,0.7)',
-              borderBottom: '1px solid #1a251f',
+              background: isDark ? 'rgba(13,20,17,0.7)' : '#f8fafc',
+              borderBottom: `1px solid ${isDark ? '#1a251f' : '#e2e8f0'}`,
               fontSize: 11,
               fontWeight: 600,
-              color: '#6b7280',
+              color: textMuted,
               textTransform: 'uppercase',
               letterSpacing: '0.6px',
             }}>
@@ -732,25 +748,25 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
                     display: 'grid',
                     gridTemplateColumns: '1.2fr 1.1fr 140px 140px 150px 200px',
                     padding: '16px 20px',
-                    borderBottom: i < filteredPayments.length - 1 ? '1px solid #1a251f' : 'none',
+                    borderBottom: i < filteredPayments.length - 1 ? `1px solid ${isDark ? '#1a251f' : '#f1f5f9'}` : 'none',
                     alignItems: 'center',
                     fontSize: 13,
-                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                    background: i % 2 === 0 ? 'transparent' : (isDark ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)'),
                   }}
                 >
                   {/* Student Name & Email */}
                   <div style={{ overflow: 'hidden', paddingRight: 10 }}>
-                    <div style={{ fontWeight: 600, color: '#f3f4f6', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                      {item.name || <span style={{ color: '#6b7280' }}>Student</span>}
+                    <div style={{ fontWeight: 600, color: textCol, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      {item.name || <span style={{ color: textMuted }}>Student</span>}
                     </div>
-                    <div style={{ color: '#9ca3af', fontSize: 11, marginTop: 2, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                      {item.email || <span style={{ color: '#4b5563' }}>No email</span>}
+                    <div style={{ color: textMuted, fontSize: 11, marginTop: 2, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      {item.email || <span style={{ color: isDark ? '#4b5563' : '#94a3b8' }}>No email</span>}
                     </div>
                   </div>
 
                   {/* Phone & WhatsApp link */}
                   <div style={{ paddingRight: 10 }}>
-                    <div style={{ color: '#d1d5db', fontSize: 12, fontFamily: 'monospace' }}>
+                    <div style={{ color: isDark ? '#d1d5db' : '#334155', fontSize: 12, fontFamily: 'monospace' }}>
                       +{item.phone}
                     </div>
                     <a

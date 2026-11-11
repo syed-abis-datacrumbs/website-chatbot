@@ -54,10 +54,21 @@ async function handleFollowUps(req: NextRequest) {
 
       // 2. Format student greeting
       const studentName = contact.name && contact.name.trim() !== 'Student' && contact.name.trim() !== 'there' ? contact.name.trim() : '';
-      const greeting = studentName ? `Assalam-o-Alaikum ${studentName}! 👋` : `Assalam-o-Alaikum! 👋`;
+      const greeting = studentName ? `Hi ${studentName}! 👋` : `Hi there! 👋`;
 
       const followUpMsg = `${greeting}
-Just following up regarding the 16-Week AI & Data Science Bootcamp... You're welcome to join our open WhatsApp Discussion Group:
+
+Following up on your application for the 16-Week AI & Data Science Bootcamp. 
+
+Most people join our bootcamp for one clear reason: they want real, monetizable tech skills. Here is the exact career outcome we focus on from Day 1:
+
+* 💼 12 Production Projects: You won’t just learn theory; you’ll build a live GitHub portfolio (LLM apps, predictive models, end-to-end deployment) that impresses international clients.
+* 💵 Remote Work & Freelancing: We cover how to position your AI skills on Upwork and LinkedIn to land high-paying contracts in USD ($500 – $2,000+).
+* 🎯 Career Mentorship: Live interview prep, resume optimization, and direct guidance from industry data scientists.
+
+To help guide you best: Are you aiming more towards landing a remote job, or starting freelance AI consulting? 🚀
+
+You're welcome to join our open WhatsApp Discussion Group:
 🔗 https://chat.whatsapp.com/FVhBoXyalQm4ki5CWX1Xnl`;
 
       try {

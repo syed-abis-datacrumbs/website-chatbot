@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChatMessage } from '@/lib/redis';
 import { WELCOME_GREETING } from '@/lib/knowledge';
+import { useTheme } from '@/context/ThemeContext';
 
 const NEON   = '#5ce46d';
 const BG     = '#090d0b';
@@ -82,6 +83,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
   const [timeFrom,    setTimeFrom]    = useState('');
   const [timeTo,      setTimeTo]      = useState('');
   const [showEmoji,   setShowEmoji]   = useState(false);
+  const { isDark, toggleTheme }       = useTheme();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -226,18 +228,19 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: isDark ? BG : '#f8fafc' }}>
 
       {/* ── Contact list ── */}
       <div style={{
         width: 280, flexShrink: 0,
         display: 'flex', flexDirection: 'column',
-        background: '#0a0f0d',
-        borderRight: `1px solid ${BORDER}`,
+        background: isDark ? '#0a0f0d' : '#ffffff',
+        borderRight: `1px solid ${isDark ? BORDER : '#e2e8f0'}`,
+        transition: 'background 0.2s, border-color 0.2s',
       }}>
-        <div style={{ padding: '16px 16px 12px', borderBottom: `1px solid ${BORDER}` }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>Conversations</div>
-          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2, marginBottom: 10 }}>
+        <div style={{ padding: '16px 16px 12px', borderBottom: `1px solid ${isDark ? BORDER : '#e2e8f0'}` }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: isDark ? '#fff' : '#0f172a' }}>Conversations</div>
+          <div style={{ fontSize: 11, color: isDark ? '#6b7280' : '#64748b', marginTop: 2, marginBottom: 10 }}>
             {contacts.length} contact{contacts.length !== 1 ? 's' : ''} · {total} message{total !== 1 ? 's' : ''}
           </div>
           <div style={{ display: 'flex', gap: 6, position: 'relative' }}>
@@ -248,9 +251,10 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
               placeholder="Search by phone number…"
               style={{
                 flex: 1, minWidth: 0, boxSizing: 'border-box',
-                background: '#0d1511', border: `1px solid ${BORDER}`,
+                background: isDark ? '#0d1511' : '#f8fafc',
+                border: `1px solid ${isDark ? BORDER : '#cbd5e1'}`,
                 borderRadius: 8, padding: '7px 10px', fontSize: 12.5,
-                color: '#e5e7eb', outline: 'none',
+                color: isDark ? '#e5e7eb' : '#0f172a', outline: 'none',
               }}
             />
             <div style={{ position: 'relative' }} ref={filterRef}>
@@ -259,9 +263,13 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                 title="Filter by date & time"
                 style={{
                   width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                  background: dateFilterActive ? 'rgba(92,228,109,0.12)' : '#0d1511',
-                  border: `1px solid ${dateFilterActive ? 'rgba(92,228,109,0.4)' : BORDER}`,
-                  color: dateFilterActive ? NEON : '#9ca3af',
+                  background: dateFilterActive
+                    ? (isDark ? 'rgba(92,228,109,0.12)' : 'rgba(16,185,129,0.12)')
+                    : (isDark ? '#0d1511' : '#f8fafc'),
+                  border: `1px solid ${dateFilterActive
+                    ? (isDark ? 'rgba(92,228,109,0.4)' : '#10b981')
+                    : (isDark ? BORDER : '#cbd5e1')}`,
+                  color: dateFilterActive ? (isDark ? NEON : '#059669') : (isDark ? '#9ca3af' : '#64748b'),
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   cursor: 'pointer',
                 }}
@@ -273,40 +281,42 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
               {showFilter && (
                 <div style={{
                   position: 'absolute', top: 38, right: 0, zIndex: 20,
-                  width: 220, background: '#0d1511', border: `1px solid ${BORDER}`,
+                  width: 220,
+                  background: isDark ? '#0d1511' : '#ffffff',
+                  border: `1px solid ${isDark ? BORDER : '#e2e8f0'}`,
                   borderRadius: 10, padding: 12,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  boxShadow: isDark ? '0 8px 24px rgba(0,0,0,0.5)' : '0 10px 25px -5px rgba(0,0,0,0.1)',
                 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', marginBottom: 8 }}>Filter by date & time</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: isDark ? '#9ca3af' : '#475569', marginBottom: 8 }}>Filter by date & time</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <label style={{ fontSize: 10, color: '#6b7280' }}>
+                    <label style={{ fontSize: 10, color: isDark ? '#6b7280' : '#64748b' }}>
                       Date from
                       <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                        style={{ width: '100%', marginTop: 3, boxSizing: 'border-box', background: '#090d0b', border: `1px solid ${BORDER}`, borderRadius: 6, padding: '5px 7px', fontSize: 11.5, color: '#e5e7eb' }} />
+                        style={{ width: '100%', marginTop: 3, boxSizing: 'border-box', background: isDark ? '#090d0b' : '#f8fafc', border: `1px solid ${isDark ? BORDER : '#cbd5e1'}`, borderRadius: 6, padding: '5px 7px', fontSize: 11.5, color: isDark ? '#e5e7eb' : '#0f172a' }} />
                     </label>
-                    <label style={{ fontSize: 10, color: '#6b7280' }}>
+                    <label style={{ fontSize: 10, color: isDark ? '#6b7280' : '#64748b' }}>
                       Date to
                       <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                        style={{ width: '100%', marginTop: 3, boxSizing: 'border-box', background: '#090d0b', border: `1px solid ${BORDER}`, borderRadius: 6, padding: '5px 7px', fontSize: 11.5, color: '#e5e7eb' }} />
+                        style={{ width: '100%', marginTop: 3, boxSizing: 'border-box', background: isDark ? '#090d0b' : '#f8fafc', border: `1px solid ${isDark ? BORDER : '#cbd5e1'}`, borderRadius: 6, padding: '5px 7px', fontSize: 11.5, color: isDark ? '#e5e7eb' : '#0f172a' }} />
                     </label>
-                    <label style={{ fontSize: 10, color: '#6b7280' }}>
+                    <label style={{ fontSize: 10, color: isDark ? '#6b7280' : '#64748b' }}>
                       Time from
                       <input type="time" value={timeFrom} onChange={e => setTimeFrom(e.target.value)}
-                        style={{ width: '100%', marginTop: 3, boxSizing: 'border-box', background: '#090d0b', border: `1px solid ${BORDER}`, borderRadius: 6, padding: '5px 7px', fontSize: 11.5, color: '#e5e7eb' }} />
+                        style={{ width: '100%', marginTop: 3, boxSizing: 'border-box', background: isDark ? '#090d0b' : '#f8fafc', border: `1px solid ${isDark ? BORDER : '#cbd5e1'}`, borderRadius: 6, padding: '5px 7px', fontSize: 11.5, color: isDark ? '#e5e7eb' : '#0f172a' }} />
                     </label>
-                    <label style={{ fontSize: 10, color: '#6b7280' }}>
+                    <label style={{ fontSize: 10, color: isDark ? '#6b7280' : '#64748b' }}>
                       Time to
                       <input type="time" value={timeTo} onChange={e => setTimeTo(e.target.value)}
-                        style={{ width: '100%', marginTop: 3, boxSizing: 'border-box', background: '#090d0b', border: `1px solid ${BORDER}`, borderRadius: 6, padding: '5px 7px', fontSize: 11.5, color: '#e5e7eb' }} />
+                        style={{ width: '100%', marginTop: 3, boxSizing: 'border-box', background: isDark ? '#090d0b' : '#f8fafc', border: `1px solid ${isDark ? BORDER : '#cbd5e1'}`, borderRadius: 6, padding: '5px 7px', fontSize: 11.5, color: isDark ? '#e5e7eb' : '#0f172a' }} />
                     </label>
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
                     <button onClick={clearDateFilter}
-                      style={{ flex: 1, fontSize: 11, padding: '6px 0', borderRadius: 6, border: `1px solid ${BORDER}`, background: 'transparent', color: '#9ca3af', cursor: 'pointer' }}>
+                      style={{ flex: 1, fontSize: 11, padding: '6px 0', borderRadius: 6, border: `1px solid ${isDark ? BORDER : '#cbd5e1'}`, background: 'transparent', color: isDark ? '#9ca3af' : '#64748b', cursor: 'pointer' }}>
                       Clear
                     </button>
                     <button onClick={() => setShowFilter(false)}
-                      style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '6px 0', borderRadius: 6, border: 'none', background: NEON, color: '#000', cursor: 'pointer' }}>
+                      style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '6px 0', borderRadius: 6, border: 'none', background: isDark ? NEON : '#10b981', color: isDark ? '#000' : '#fff', cursor: 'pointer' }}>
                       Apply
                     </button>
                   </div>
@@ -318,7 +328,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {filteredContacts.length === 0 ? (
-            <div style={{ padding: 32, textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
+            <div style={{ padding: 32, textAlign: 'center', color: isDark ? '#6b7280' : '#64748b', fontSize: 13 }}>
               {search.trim() || dateFilterActive ? 'No matching conversations' : 'No conversations yet'}
             </div>
           ) : filteredContacts.map(c => {
@@ -330,7 +340,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                 key={c.phone}
                 onMouseEnter={() => setHov(c.phone)}
                 onMouseLeave={() => setHov(null)}
-                style={{ position: 'relative', borderBottom: `1px solid ${BORDER}` }}
+                style={{ position: 'relative', borderBottom: `1px solid ${isDark ? BORDER : '#f1f5f9'}` }}
               >
                 <button
                   onClick={() => setSelected(c.phone)}
@@ -338,9 +348,9 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                     width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
                     padding: '12px 14px',
                     background: isActive
-                      ? 'linear-gradient(to right, #1a3020, #0e1f14)'
-                      : isHovered ? '#121a16' : 'transparent',
-                    borderLeft: `3px solid ${isActive ? NEON : 'transparent'}`,
+                      ? (isDark ? 'linear-gradient(to right, #1a3020, #0e1f14)' : 'linear-gradient(to right, #ecfdf5, #f0fdf4)')
+                      : isHovered ? (isDark ? '#121a16' : '#f8fafc') : 'transparent',
+                    borderLeft: `3px solid ${isActive ? (isDark ? NEON : '#10b981') : 'transparent'}`,
                     display: 'flex', alignItems: 'center', gap: 10,
                     transition: 'all 0.15s',
                     boxSizing: 'border-box',
@@ -349,24 +359,24 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                 >
                   <div style={{
                     width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-                    background: `hsla(${h},45%,18%,1)`,
-                    border: `1.5px solid hsla(${h},45%,30%,1)`,
+                    background: `hsla(${h},45%,${isDark ? '18%' : '90%'},1)`,
+                    border: `1.5px solid hsla(${h},45%,${isDark ? '30%' : '75%'},1)`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, color: `hsla(${h},60%,70%,1)`,
+                    fontSize: 12, fontWeight: 700, color: `hsla(${h},${isDark ? '60%,70%' : '70%,35%'},1)`,
                   }}>
                     {phoneInitials(c.phone)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span style={{ fontWeight: 600, fontSize: 12.5, color: isActive ? '#fff' : '#d1d5db' }}>
+                      <span style={{ fontWeight: 600, fontSize: 12.5, color: isActive ? (isDark ? '#fff' : '#0f172a') : (isDark ? '#d1d5db' : '#334155') }}>
                         +{c.phone}
                       </span>
-                      <span style={{ fontSize: 10, color: '#6b7280', flexShrink: 0, marginLeft: 4 }}>
+                      <span style={{ fontSize: 10, color: isDark ? '#6b7280' : '#94a3b8', flexShrink: 0, marginLeft: 4 }}>
                         {formatTime(c.lastMessage.timestamp)}
                       </span>
                     </div>
                     <div style={{
-                      fontSize: 11.5, color: '#6b7280', marginTop: 2,
+                      fontSize: 11.5, color: isDark ? '#6b7280' : '#64748b', marginTop: 2,
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     }}>
                       {c.lastMessage.text === '[image]' ? '📷 Photo' : (c.lastMessage.reply || c.lastMessage.text)}
@@ -402,38 +412,58 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
       </div>
 
       {/* ── Chat area ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: BG }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: isDark ? BG : '#f8fafc' }}>
         {active ? (
           <>
             {/* Header */}
             <div style={{
-              background: GLASS,
+              background: isDark ? GLASS : '#ffffff',
               border: 'none',
-              borderBottom: `1px solid ${BORDER}`,
+              borderBottom: `1px solid ${isDark ? BORDER : '#e2e8f0'}`,
               padding: '14px 24px',
               display: 'flex', alignItems: 'center', gap: 12,
             }}>
               <div style={{
                 width: 38, height: 38, borderRadius: '50%',
-                background: `hsla(${hueFromPhone(active.phone)},45%,18%,1)`,
-                border: `1.5px solid ${NEON}`,
-                boxShadow: '0 0 8px rgba(92,228,109,0.2)',
+                background: `hsla(${hueFromPhone(active.phone)},45%,${isDark ? '18%' : '90%'},1)`,
+                border: `1.5px solid ${isDark ? NEON : '#10b981'}`,
+                boxShadow: isDark ? '0 0 8px rgba(92,228,109,0.2)' : '0 1px 4px rgba(16,185,129,0.2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 700, color: NEON,
+                fontSize: 12, fontWeight: 700, color: isDark ? NEON : '#059669',
               }}>
                 {phoneInitials(active.phone)}
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: '#fff' }}>+{active.phone}</div>
-                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: isDark ? '#fff' : '#0f172a' }}>+{active.phone}</div>
+                <div style={{ fontSize: 11, color: isDark ? '#6b7280' : '#64748b', marginTop: 1 }}>
                   {active.messages.length} exchange{active.messages.length !== 1 ? 's' : ''}
                 </div>
               </div>
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14 }}>
+                {/* Theme toggle */}
+                <button
+                  onClick={toggleTheme}
+                  title={`Switch to ${isDark ? 'Light' : 'Dark'} mode`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '4px 10px', borderRadius: 20,
+                    background: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
+                    border: `1px solid ${isDark ? '#202d26' : '#cbd5e1'}`,
+                    color: isDark ? '#fef08a' : '#334155',
+                    cursor: 'pointer', fontSize: 12, fontWeight: 500,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <span>{isDark ? '☀️' : '🌙'}</span>
+                  <span style={{ fontSize: 11.5, color: isDark ? '#d1d5db' : '#334155' }}>
+                    {isDark ? 'Light' : 'Dark'}
+                  </span>
+                </button>
+
                 {/* Bot toggle */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 11, color: '#6b7280' }}>
-                    Bot: <strong style={{ color: botDisabled ? '#ef4444' : NEON }}>{botDisabled ? 'OFF' : 'ON'}</strong>
+                  <span style={{ fontSize: 11, color: isDark ? '#6b7280' : '#64748b' }}>
+                    Bot: <strong style={{ color: botDisabled ? '#ef4444' : (isDark ? NEON : '#059669') }}>{botDisabled ? 'OFF' : 'ON'}</strong>
                   </span>
                   <button
                     onClick={toggleBot}
@@ -441,10 +471,10 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                     title={botDisabled ? 'Enable bot for this contact' : 'Disable bot — take over manually'}
                     style={{
                       width: 40, height: 22, borderRadius: 11, border: 'none',
-                      background: botDisabled ? '#374151' : NEON,
+                      background: botDisabled ? '#9ca3af' : (isDark ? NEON : '#10b981'),
                       cursor: toggling ? 'not-allowed' : 'pointer',
                       position: 'relative', transition: 'background 0.2s',
-                      boxShadow: botDisabled ? 'none' : '0 0 10px rgba(92,228,109,0.4)',
+                      boxShadow: botDisabled ? 'none' : (isDark ? '0 0 10px rgba(92,228,109,0.4)' : '0 0 8px rgba(16,185,129,0.3)'),
                     }}
                   >
                     <span style={{
@@ -457,8 +487,8 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                   </button>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: NEON, boxShadow: `0 0 8px rgba(92,228,109,0.6)` }} />
-                  <span style={{ fontSize: 11, color: '#6b7280' }}>Active</span>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: isDark ? NEON : '#10b981', boxShadow: isDark ? `0 0 8px rgba(92,228,109,0.6)` : '0 0 6px rgba(16,185,129,0.5)' }} />
+                  <span style={{ fontSize: 11, color: isDark ? '#6b7280' : '#64748b' }}>Active</span>
                 </div>
               </div>
             </div>
@@ -467,14 +497,16 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
             <div style={{
               flex: 1, overflowY: 'auto', padding: '20px 28px',
               display: 'flex', flexDirection: 'column', gap: 16,
-              background: BG,
+              background: isDark ? BG : '#f8fafc',
             }}>
               {[...active.messages].reverse().map((msg, i) => (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ textAlign: 'center' }}>
                     <span style={{
-                      fontSize: 10, color: '#4b5563',
-                      background: '#0d1511', border: '1px solid #202d26',
+                      fontSize: 10,
+                      color: isDark ? '#6b7280' : '#64748b',
+                      background: isDark ? '#0d1511' : '#e2e8f0',
+                      border: `1px solid ${isDark ? '#202d26' : '#cbd5e1'}`,
                       borderRadius: 20, padding: '3px 10px',
                     }}>
                       {formatFull(msg.timestamp)}
@@ -484,14 +516,16 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                   {msg.text !== '' && (
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                       <div style={{ maxWidth: '65%' }}>
-                        <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 3, textAlign: 'right', paddingRight: 4 }}>Customer</div>
+                        <div style={{ fontSize: 10, color: isDark ? '#6b7280' : '#64748b', marginBottom: 3, textAlign: 'right', paddingRight: 4 }}>Customer</div>
                         <div style={{
-                          background: `linear-gradient(135deg, ${NEON}, #3db854)`,
-                          color: '#000',
+                          background: isDark
+                            ? `linear-gradient(135deg, ${NEON}, #3db854)`
+                            : `linear-gradient(135deg, #10b981, #059669)`,
+                          color: isDark ? '#000' : '#ffffff',
                           padding: msg.mediaType === 'image' && msg.mediaUrl ? '5px' : '10px 14px',
                           fontSize: 13, lineHeight: 1.55,
                           borderRadius: '16px 16px 4px 16px',
-                          boxShadow: '0 0 12px rgba(92,228,109,0.25)',
+                          boxShadow: isDark ? '0 0 12px rgba(92,228,109,0.25)' : '0 2px 8px rgba(16,185,129,0.25)',
                           fontWeight: 500, overflow: 'hidden',
                         }}>
                           {msg.mediaType === 'image' && msg.mediaUrl ? (
@@ -514,10 +548,10 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                       </div>
                       <div style={{
                         width: 30, height: 30, borderRadius: '50%', flexShrink: 0, alignSelf: 'flex-end',
-                        background: `hsla(${hueFromPhone(active.phone)},45%,18%,1)`,
-                        border: `1.5px solid ${NEON}`,
+                        background: `hsla(${hueFromPhone(active.phone)},45%,${isDark ? '18%' : '90%'},1)`,
+                        border: `1.5px solid ${isDark ? NEON : '#10b981'}`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 11, fontWeight: 700, color: NEON,
+                        fontSize: 11, fontWeight: 700, color: isDark ? NEON : '#059669',
                       }}>
                         {phoneInitials(active.phone)}
                       </div>
@@ -528,28 +562,38 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                   <div style={{ display: 'flex', gap: 8 }}>
                     <div style={{
                       width: 30, height: 30, borderRadius: '50%', flexShrink: 0, alignSelf: 'flex-end',
-                      background: '#1a251f', border: `1.5px solid ${NEON}`,
+                      background: isDark ? '#1a251f' : '#ecfdf5',
+                      border: `1.5px solid ${isDark ? NEON : '#10b981'}`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13,
                     }}>🤖</div>
                     <div style={{ maxWidth: '65%' }}>
-                      <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 3, paddingLeft: 4 }}>
+                      <div style={{ fontSize: 10, color: isDark ? '#6b7280' : '#64748b', marginBottom: 3, paddingLeft: 4 }}>
                         {msg.text === '' ? 'You (Admin)' : 'DataCrumbs AI'}
                       </div>
                       {msg.mediaType === 'document' && (
                         <div style={{
                           display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 6,
-                          background: 'rgba(92,228,109,0.08)', border: `1px solid rgba(92,228,109,0.3)`,
-                          borderRadius: 8, padding: '5px 10px', fontSize: 12, color: NEON,
+                          background: isDark ? 'rgba(92,228,109,0.08)' : '#ecfdf5',
+                          border: `1px solid ${isDark ? 'rgba(92,228,109,0.3)' : '#a7f3d0'}`,
+                          borderRadius: 8, padding: '5px 10px', fontSize: 12,
+                          color: isDark ? NEON : '#059669',
                         }}>
                           📄 Brochure sent
                         </div>
                       )}
                       <div style={{
-                        background: msg.text === '' ? 'linear-gradient(135deg, #1a3020, #0e1f14)' : 'linear-gradient(180deg, rgba(20,29,25,0.9) 0%, rgba(13,20,17,1) 100%)',
-                        border: msg.text === '' ? `1px solid ${NEON}` : `1px solid ${BORDER}`,
-                        color: '#e5e7eb', padding: '10px 14px', fontSize: 13, lineHeight: 1.6,
+                        background: msg.text === ''
+                          ? (isDark ? 'linear-gradient(135deg, #1a3020, #0e1f14)' : '#ecfdf5')
+                          : (isDark ? 'linear-gradient(180deg, rgba(20,29,25,0.9) 0%, rgba(13,20,17,1) 100%)' : '#ffffff'),
+                        border: msg.text === ''
+                          ? `1px solid ${isDark ? NEON : '#10b981'}`
+                          : `1px solid ${isDark ? BORDER : '#e2e8f0'}`,
+                        color: msg.text === '' ? (isDark ? '#e5e7eb' : '#064e3b') : (isDark ? '#e5e7eb' : '#1e293b'),
+                        padding: '10px 14px', fontSize: 13, lineHeight: 1.6,
                         borderRadius: '16px 16px 16px 4px',
-                        boxShadow: msg.text === '' ? `0 0 10px rgba(92,228,109,0.15)` : 'none',
+                        boxShadow: msg.text === ''
+                          ? (isDark ? `0 0 10px rgba(92,228,109,0.15)` : '0 1px 3px rgba(16,185,129,0.1)')
+                          : (isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.06)'),
                         whiteSpace: 'pre-wrap',
                       }}>
                         {msg.reply}
@@ -564,8 +608,8 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
 
             {/* Input */}
             <div style={{
-              background: GLASS,
-              borderTop: `1px solid ${BORDER}`,
+              background: isDark ? GLASS : '#ffffff',
+              borderTop: `1px solid ${isDark ? BORDER : '#e2e8f0'}`,
               padding: '10px 20px 14px',
             }}>
               {/* Quick-reply buttons — click to send instantly, no typing needed */}
@@ -580,9 +624,9 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                       style={{
                         fontSize: 11.5, fontWeight: 500,
                         padding: '5px 12px', borderRadius: 20,
-                        background: 'rgba(92,228,109,0.08)',
-                        border: '1px solid rgba(92,228,109,0.25)',
-                        color: isLoading ? '#6b7280' : NEON,
+                        background: isDark ? 'rgba(92,228,109,0.08)' : '#ecfdf5',
+                        border: `1px solid ${isDark ? 'rgba(92,228,109,0.25)' : '#a7f3d0'}`,
+                        color: isLoading ? '#6b7280' : (isDark ? NEON : '#059669'),
                         cursor: quickSending !== null ? 'not-allowed' : 'pointer',
                         opacity: quickSending !== null && !isLoading ? 0.5 : 1,
                         transition: 'all 0.15s',
@@ -593,14 +637,15 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                   );
                 })}
               </div>
-              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 7 }}>
-                Send as admin to <strong style={{ color: '#9ca3af' }}>+{active.phone}</strong>
+              <div style={{ fontSize: 11, color: isDark ? '#6b7280' : '#64748b', marginBottom: 7 }}>
+                Send as admin to <strong style={{ color: isDark ? '#9ca3af' : '#334155' }}>+{active.phone}</strong>
               </div>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8,
-                background: '#0a0f0d', borderRadius: 28,
+                background: isDark ? '#0a0f0d' : '#f8fafc',
+                borderRadius: 28,
                 padding: '5px 5px 5px 16px',
-                border: `1.5px solid ${BORDER}`,
+                border: `1.5px solid ${isDark ? BORDER : '#cbd5e1'}`,
               }}>
                 <input
                   ref={inputRef}
@@ -613,7 +658,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                   style={{
                     flex: 1, border: 'none', outline: 'none',
                     background: 'transparent', fontSize: 13.5,
-                    color: '#e5e7eb', fontFamily: 'inherit',
+                    color: isDark ? '#e5e7eb' : '#0f172a', fontFamily: 'inherit',
                   }}
                 />
                 <div style={{ position: 'relative' }} ref={emojiRef}>
@@ -622,7 +667,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                     title="Emoji"
                     style={{
                       width: 30, height: 30, borderRadius: '50%', border: 'none',
-                      background: 'transparent', color: '#9ca3af',
+                      background: 'transparent', color: isDark ? '#9ca3af' : '#64748b',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       cursor: 'pointer', flexShrink: 0, fontSize: 17,
                     }}
@@ -632,9 +677,11 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                   {showEmoji && (
                     <div style={{
                       position: 'absolute', bottom: 40, right: 0, zIndex: 20,
-                      width: 200, background: '#0d1511', border: `1px solid ${BORDER}`,
+                      width: 200,
+                      background: isDark ? '#0d1511' : '#ffffff',
+                      border: `1px solid ${isDark ? BORDER : '#e2e8f0'}`,
                       borderRadius: 10, padding: 10,
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                      boxShadow: isDark ? '0 8px 24px rgba(0,0,0,0.5)' : '0 10px 25px -5px rgba(0,0,0,0.1)',
                       display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 4,
                     }}>
                       {EMOJI_PICKS.map(emo => (
@@ -658,11 +705,13 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                   style={{
                     width: 36, height: 36, borderRadius: '50%', border: 'none',
                     background: sending || !input.trim()
-                      ? '#1a251f'
-                      : NEON,
+                      ? (isDark ? '#1a251f' : '#e2e8f0')
+                      : (isDark ? NEON : '#10b981'),
                     cursor: sending || !input.trim() ? 'not-allowed' : 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    boxShadow: sending || !input.trim() ? 'none' : `0 0 14px rgba(92,228,109,0.45)`,
+                    boxShadow: sending || !input.trim()
+                      ? 'none'
+                      : (isDark ? `0 0 14px rgba(92,228,109,0.45)` : '0 2px 8px rgba(16,185,129,0.35)'),
                     transition: 'all 0.15s',
                   }}
                 >
@@ -670,11 +719,11 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                     <div style={{
                       width: 14, height: 14,
                       border: '2px solid rgba(255,255,255,0.2)',
-                      borderTop: `2px solid ${NEON}`,
+                      borderTop: `2px solid ${isDark ? NEON : '#10b981'}`,
                       borderRadius: '50%', animation: 'spin 0.7s linear infinite',
                     }} />
                   ) : (
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill={sending || !input.trim() ? '#6b7280' : '#000'}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill={sending || !input.trim() ? '#6b7280' : (isDark ? '#000' : '#fff')}>
                       <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                     </svg>
                   )}
@@ -686,14 +735,17 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
           <div style={{
             flex: 1, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: 12,
+            background: isDark ? BG : '#f8fafc',
           }}>
             <div style={{
               width: 64, height: 64, borderRadius: '50%',
-              background: '#0d1511', border: `1px solid ${BORDER}`,
+              background: isDark ? '#0d1511' : '#ffffff',
+              border: `1px solid ${isDark ? BORDER : '#e2e8f0'}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+              boxShadow: isDark ? 'none' : '0 2px 8px rgba(0,0,0,0.05)',
             }}>💬</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#d1d5db' }}>No conversation selected</div>
-            <div style={{ fontSize: 13, color: '#6b7280' }}>Pick a contact from the list</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: isDark ? '#d1d5db' : '#0f172a' }}>No conversation selected</div>
+            <div style={{ fontSize: 13, color: isDark ? '#6b7280' : '#64748b' }}>Pick a contact from the list</div>
           </div>
         )}
       </div>

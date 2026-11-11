@@ -9,14 +9,27 @@ const LEADS_TAB         = process.env.GOOGLE_SHEET_TAB_LEADS ?? 'agent leads';
 const DEMO_TAB          = process.env.GOOGLE_SHEET_TAB_DEMO ?? 'Demo';
 
 function tabRange(tab: string, range: string): string {
-  // Always wrap tab names in quotes to handle spaces e.g. 'Payment info bot'!A1:F1
-  return `'${tab.replace(/'/g, "\\'")}'!${range}`;
+  // In Google Sheets A1 notation, single quotes inside sheet titles are escaped by doubling them ('')
+  return `'${tab.replace(/'/g, "''")}'!${range}`;
+}
+
+function getPrivateKey(): string {
+  let key = process.env.GOOGLE_PRIVATE_KEY ?? '';
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1);
+  }
+  key = key.replace(/\\n/g, '\n').replace(/\\r/g, '');
+  return key
+    .split('\n')
+    .map(line => line.replace(/\\/g, '').trim())
+    .filter(Boolean)
+    .join('\n');
 }
 
 function auth() {
   return new google.auth.JWT({
     email: process.env.GOOGLE_CLIENT_EMAIL,
-    key:   (process.env.GOOGLE_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+    key:   getPrivateKey(),
     scopes: [
       'https://www.googleapis.com/auth/drive',
       'https://www.googleapis.com/auth/spreadsheets',
@@ -364,21 +377,28 @@ export interface SheetLead { name: string; email: string; phone: string; date: s
 
 export async function getLeadsFromSheet(): Promise<SheetLead[]> {
   const sheets = google.sheets({ version: 'v4', auth: auth() });
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: tabRange(LEADS_TAB, 'A2:F'),
-  });
-  const rows = res.data.values ?? [];
-  return rows
-    .filter(r => r[4])
-    .map(r => ({
-      date: r[0] ?? '',
-      time: r[1] ?? '',
-      name: r[2] ?? '',
-      email: r[3] ?? '',
-      phone: String(r[4] ?? '').replace(/^\+/, ''),
-      status: r[5] ?? '',
-    }));
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: tabRange(LEADS_TAB, 'A2:F'),
+    });
+    const rows = res.data.values ?? [];
+    return rows
+      .filter(r => r[4])
+      .map(r => ({
+        date: r[0] ?? '',
+        time: r[1] ?? '',
+        name: r[2] ?? '',
+        email: r[3] ?? '',
+        phone: String(r[4] ?? '').replace(/^\+/, ''),
+        status: r[5] ?? '',
+      }));
+  } catch (err: any) {
+    if (err.message?.includes('Unable to parse range')) {
+      return [];
+    }
+    throw err;
+  }
 }
 
 export interface SheetDiscountRequest {
@@ -387,21 +407,28 @@ export interface SheetDiscountRequest {
 
 export async function getDiscountRequestsFromSheet(): Promise<SheetDiscountRequest[]> {
   const sheets = google.sheets({ version: 'v4', auth: auth() });
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: tabRange(DISCOUNT_TAB, 'A2:F'),
-  });
-  const rows = res.data.values ?? [];
-  return rows
-    .filter(r => r[2])
-    .map(r => ({
-      name: r[0] ?? '',
-      email: r[1] ?? '',
-      phone: String(r[2] ?? '').replace(/^\+/, ''),
-      message: r[3] ?? '',
-      submitted: r[4] ?? '',
-      comment: r[5] ?? '',
-    }));
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: tabRange(DISCOUNT_TAB, 'A2:F'),
+    });
+    const rows = res.data.values ?? [];
+    return rows
+      .filter(r => r[2])
+      .map(r => ({
+        name: r[0] ?? '',
+        email: r[1] ?? '',
+        phone: String(r[2] ?? '').replace(/^\+/, ''),
+        message: r[3] ?? '',
+        submitted: r[4] ?? '',
+        comment: r[5] ?? '',
+      }));
+  } catch (err: any) {
+    if (err.message?.includes('Unable to parse range')) {
+      return [];
+    }
+    throw err;
+  }
 }
 
 export interface SheetDemoRequest {
@@ -410,20 +437,27 @@ export interface SheetDemoRequest {
 
 export async function getDemoRequestsFromSheet(): Promise<SheetDemoRequest[]> {
   const sheets = google.sheets({ version: 'v4', auth: auth() });
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: tabRange(DEMO_TAB, 'A2:E'),
-  });
-  const rows = res.data.values ?? [];
-  return rows
-    .filter(r => r[2])
-    .map(r => ({
-      name: r[0] ?? '',
-      email: r[1] ?? '',
-      phone: String(r[2] ?? '').replace(/^\+/, ''),
-      message: r[3] ?? '',
-      submitted: r[4] ?? '',
-    }));
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: tabRange(DEMO_TAB, 'A2:E'),
+    });
+    const rows = res.data.values ?? [];
+    return rows
+      .filter(r => r[2])
+      .map(r => ({
+        name: r[0] ?? '',
+        email: r[1] ?? '',
+        phone: String(r[2] ?? '').replace(/^\+/, ''),
+        message: r[3] ?? '',
+        submitted: r[4] ?? '',
+      }));
+  } catch (err: any) {
+    if (err.message?.includes('Unable to parse range')) {
+      return [];
+    }
+    throw err;
+  }
 }
 
 export interface SheetEnrollment {
@@ -433,22 +467,29 @@ export interface SheetEnrollment {
 
 export async function getEnrollmentsFromSheet(): Promise<SheetEnrollment[]> {
   const sheets = google.sheets({ version: 'v4', auth: auth() });
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: tabRange(SHEET_TAB, 'A2:F'),
-  });
-  const rows = res.data.values ?? [];
-  return rows
-    .map((r, i) => ({
-      rowIndex: i + 2,
-      name: r[0] ?? '',
-      email: r[1] ?? '',
-      phone: String(r[2] ?? '').replace(/^\+/, ''),
-      submitted: r[3] ?? '',
-      driveLink: r[4] ?? '',
-      status: r[5] || 'Pending',
-    }))
-    .filter(e => e.phone);
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: tabRange(SHEET_TAB, 'A2:F'),
+    });
+    const rows = res.data.values ?? [];
+    return rows
+      .map((r, i) => ({
+        rowIndex: i + 2,
+        name: r[0] ?? '',
+        email: r[1] ?? '',
+        phone: String(r[2] ?? '').replace(/^\+/, ''),
+        submitted: r[3] ?? '',
+        driveLink: r[4] ?? '',
+        status: r[5] || 'Pending',
+      }))
+      .filter(e => e.phone);
+  } catch (err: any) {
+    if (err.message?.includes('Unable to parse range')) {
+      return [];
+    }
+    throw err;
+  }
 }
 
 // Counts for the sidebar nav badges — Leads/Enrollments reflect the sheet, not MongoDB

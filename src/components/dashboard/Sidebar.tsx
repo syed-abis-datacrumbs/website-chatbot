@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useTheme } from '@/context/ThemeContext';
 
 const NEON = '#5ce46d';
 
@@ -83,6 +84,7 @@ export default function Sidebar() {
   const [hovered, setHovered] = useState<string | null>(null);
   const [logoutHov, setLogoutHov] = useState(false);
   const [counts, setCounts] = useState<Record<CountKey, number> | null>(null);
+  const { isDark } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -107,9 +109,10 @@ export default function Sidebar() {
     <div style={{
       width: 256, flexShrink: 0,
       display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-      borderRight: '1px solid #1a251f',
+      borderRight: isDark ? '1px solid #1a251f' : '1px solid #e2e8f0',
       height: '100vh',
-      background: '#090d0b',
+      background: isDark ? '#090d0b' : '#ffffff',
+      transition: 'background 0.2s, border-color 0.2s',
     }}>
       <div style={{ padding: 20 }}>
         {/* Logo */}
@@ -140,25 +143,25 @@ export default function Sidebar() {
                   display: 'flex', alignItems: 'center', gap: 12,
                   padding: '10px 12px', borderRadius: 8,
                   background: active
-                    ? 'linear-gradient(to right, #204027, #122316)'
-                    : hovering ? '#121a16' : 'transparent',
-                  border: `1px solid ${active ? '#2b5133' : 'transparent'}`,
-                  boxShadow: active ? '0 0 15px rgba(92,228,109,0.3)' : 'none',
-                  color: active ? NEON : hovering ? '#fff' : '#9ca3af',
+                    ? (isDark ? 'linear-gradient(to right, #204027, #122316)' : 'linear-gradient(to right, #ecfdf5, #f0fdf4)')
+                    : hovering ? (isDark ? '#121a16' : '#f8fafc') : 'transparent',
+                  border: `1px solid ${active ? (isDark ? '#2b5133' : '#a7f3d0') : 'transparent'}`,
+                  boxShadow: active ? (isDark ? '0 0 15px rgba(92,228,109,0.3)' : '0 2px 8px rgba(16,185,129,0.15)') : 'none',
+                  color: active ? (isDark ? NEON : '#059669') : hovering ? (isDark ? '#fff' : '#0f172a') : (isDark ? '#9ca3af' : '#64748b'),
                   transition: 'all 0.15s',
                 }}>
-                  <span style={{ color: active ? NEON : 'inherit', display: 'flex', flexShrink: 0 }}>
+                  <span style={{ color: active ? (isDark ? NEON : '#059669') : 'inherit', display: 'flex', flexShrink: 0 }}>
                     {item.icon}
                   </span>
-                  <span style={{ fontSize: 14, fontWeight: active ? 500 : 400, flex: 1 }}>
+                  <span style={{ fontSize: 14, fontWeight: active ? 600 : 400, flex: 1 }}>
                     {item.label}
                   </span>
                   {item.countKey && counts != null && (
                     <span style={{
                       fontSize: 11, fontWeight: 600,
-                      color: active ? NEON : '#6b7280',
-                      background: active ? 'rgba(92,228,109,0.12)' : 'rgba(255,255,255,0.05)',
-                      border: `1px solid ${active ? 'rgba(92,228,109,0.3)' : '#202d26'}`,
+                      color: active ? (isDark ? NEON : '#059669') : (isDark ? '#6b7280' : '#64748b'),
+                      background: active ? (isDark ? 'rgba(92,228,109,0.12)' : 'rgba(16,185,129,0.12)') : (isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'),
+                      border: `1px solid ${active ? (isDark ? 'rgba(92,228,109,0.3)' : '#a7f3d0') : (isDark ? '#202d26' : '#e2e8f0')}`,
                       borderRadius: 20, padding: '1px 8px',
                       flexShrink: 0,
                     }}>
@@ -175,8 +178,10 @@ export default function Sidebar() {
       {/* Bottom profile */}
       <div style={{ padding: '0 16px 16px' }}>
         <div style={{
-          background: 'linear-gradient(180deg, rgba(20,29,25,0.8) 0%, rgba(13,20,17,0.9) 100%)',
-          border: '1px solid #202d26',
+          background: isDark
+            ? 'linear-gradient(180deg, rgba(20,29,25,0.8) 0%, rgba(13,20,17,0.9) 100%)'
+            : '#f8fafc',
+          border: isDark ? '1px solid #202d26' : '1px solid #e2e8f0',
           borderRadius: 10, padding: '10px 12px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
@@ -184,11 +189,11 @@ export default function Sidebar() {
             <div style={{ position: 'relative' }}>
               <div style={{
                 width: 34, height: 34, borderRadius: '50%',
-                background: '#1a251f',
-                border: `1.5px solid ${NEON}`,
-                boxShadow: '0 0 10px rgba(92,228,109,0.2)',
+                background: isDark ? '#1a251f' : '#ecfdf5',
+                border: `1.5px solid ${isDark ? NEON : '#10b981'}`,
+                boxShadow: isDark ? '0 0 10px rgba(92,228,109,0.2)' : '0 0 8px rgba(16,185,129,0.2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: NEON,
+                color: isDark ? NEON : '#059669',
               }}>
                 <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
@@ -197,12 +202,12 @@ export default function Sidebar() {
               <div style={{
                 position: 'absolute', bottom: 0, right: 0,
                 width: 8, height: 8, borderRadius: '50%',
-                background: NEON, border: '1.5px solid #090d0b',
+                background: isDark ? NEON : '#10b981', border: `1.5px solid ${isDark ? '#090d0b' : '#ffffff'}`,
               }} />
             </div>
             <div>
-              <h3 style={{ fontSize: 13, fontWeight: 600, color: '#fff', margin: 0, lineHeight: 1.2 }}>Admin</h3>
-              <p style={{ fontSize: 10, color: NEON, margin: 0, lineHeight: 1.2 }}>DataCrumbs</p>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: isDark ? '#fff' : '#0f172a', margin: 0, lineHeight: 1.2 }}>Admin</h3>
+              <p style={{ fontSize: 10, color: isDark ? NEON : '#059669', margin: 0, lineHeight: 1.2 }}>DataCrumbs</p>
             </div>
           </div>
           <button
@@ -213,7 +218,7 @@ export default function Sidebar() {
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 32, height: 32, borderRadius: 6,
-              fontSize: 12, color: logoutHov ? '#ef4444' : '#9ca3af',
+              fontSize: 12, color: logoutHov ? '#ef4444' : (isDark ? '#9ca3af' : '#64748b'),
               background: logoutHov ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
               border: 'none', cursor: 'pointer',
               transition: 'all 0.15s',
