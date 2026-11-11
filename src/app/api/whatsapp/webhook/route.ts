@@ -53,7 +53,7 @@ Fee: *${process.env.PAYMENT_FEE ?? 'Rs. 7,499/month'}*
 Once you've paid, please send a *screenshot* here and we'll verify it and get you enrolled! ✅`;
 }
 
-function buildBootcampPaymentMsg() {
+function buildBootcampPaymentMsg(background?: string) {
   const bankName = process.env.PAYMENT_BANK_NAME || 'HabibMetro Bank';
   const bankTitle = process.env.PAYMENT_BANK_TITLE || 'Data Crumbs';
   const iban = process.env.PAYMENT_BANK_IBAN || 'PK61 MPBL 0165 0271 4028 0184';
@@ -61,7 +61,19 @@ function buildBootcampPaymentMsg() {
   const walletNum = process.env.PAYMENT_WALLET_NUMBER || '0336-2507273';
   const walletTitle = process.env.PAYMENT_WALLET_TITLE || 'Abis Hussain Syed';
 
-  return `That's great! We actually have several non-CS graduates and professionals making the switch in this cohort, because we start right from Python fundamentals before building live AI Agents and RAG systems.
+  const bg = (background || '').toLowerCase();
+  const isTechOrCS = /\b(cs|computer\s*science|software|developer|dev|coding|programmer|it|information\s*technology|swe|backend|frontend|fullstack|web\s*dev)\b/i.test(bg);
+
+  let opening: string;
+  if (isTechOrCS) {
+    opening = `That's awesome! With your tech and software background, you're an ideal fit for this cohort — you'll be able to quickly master advanced Agentic AI architectures, MCP servers, and multi-agent systems. 🚀`;
+  } else if (bg && !/\b(none|nothing|student|graduate)\b/i.test(bg)) {
+    opening = `That's great! We actually have several graduates and professionals from diverse backgrounds making the transition in this cohort, because we start right from fundamentals before building live AI Agents and real-world projects. 🚀`;
+  } else {
+    opening = `That's great! You'll be building live AI Agents, full-stack AI web apps, and autonomous systems in this cohort. 🚀`;
+  }
+
+  return `${opening}
 
 Our live classes are on *Weekends (Saturday, Sunday)*, and seats are capped at 30 students for 1-on-1 mentorship.
 
@@ -828,7 +840,7 @@ export async function POST(req: NextRequest) {
         });
 
         // 3. Build and send Message 2 (Class schedule + Payment details)
-        const msg2 = buildBootcampPaymentMsg();
+        const msg2 = buildBootcampPaymentMsg(background);
         await sendWhatsAppMessage(from, msg2);
 
         // 4. Save to MongoDB (visible in agent.datacrumbs.org/chats)
