@@ -5,9 +5,9 @@ import { ChatMessage } from '@/lib/redis';
 import { WELCOME_GREETING } from '@/lib/knowledge';
 import { useTheme } from '@/context/ThemeContext';
 
-const NEON   = '#5ce46d';
-const BG     = '#090d0b';
-const GLASS  = 'linear-gradient(180deg, rgba(20,29,25,0.8) 0%, rgba(13,20,17,0.9) 100%)';
+const NEON = '#5ce46d';
+const BG = '#090d0b';
+const GLASS = 'linear-gradient(180deg, rgba(20,29,25,0.8) 0%, rgba(13,20,17,0.9) 100%)';
 const BORDER = '#202d26';
 
 // Quick-reply buttons above the admin input — click to send instantly, no typing needed
@@ -19,7 +19,7 @@ const QUICK_ACTIONS: { label: string; message?: string; sendBrochure?: boolean }
   { label: 'Duration', message: `Our AI & Data Science Bootcamp is *4 Months (16 Weeks)*.\n\nUpon completion, you'll also get a *guaranteed 1-2 month industry internship*! 🚀` },
 ];
 
-const EMOJI_PICKS = ['😊','👍','🙏','🎉','❤️','🔥','✅','😀','🚀','👋','💡','📅','💰','📄','🤝','😅'];
+const EMOJI_PICKS = ['😊', '👍', '🙏', '🎉', '❤️', '🔥', '✅', '😀', '🚀', '👋', '💡', '📅', '💰', '📄', '🤝', '😅'];
 
 interface Contact {
   phone: string;
@@ -30,17 +30,35 @@ interface Contact {
 function formatTime(ts: number) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
-  const hrs  = Math.floor(diff / 3600000);
+  const hrs = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  if (mins < 1)  return 'just now';
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
-  if (hrs  < 24) return `${hrs}h ago`;
-  if (days <  7) return `${days}d ago`;
+  if (hrs < 24) return `${hrs}h ago`;
+  if (days < 7) return `${days}d ago`;
   return new Date(ts).toLocaleDateString('en-PK', { day: 'numeric', month: 'short' });
 }
 
 function formatFull(ts: number) {
   return new Date(ts).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function formatMessageTime(ts: number) {
+  return new Date(ts).toLocaleTimeString('en-PK', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function formatDateSeparator(ts: number) {
+  const d = new Date(ts);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'Today';
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function phoneInitials(phone: string) { return phone.slice(-2); }
@@ -67,27 +85,27 @@ function groupByPhone(messages: ChatMessage[]): Contact[] {
 }
 
 export default function ChatsUI({ contacts: initial, total }: { contacts: Contact[]; total: number }) {
-  const [contacts,    setContacts]    = useState<Contact[]>(initial);
-  const [selected,    setSelected]    = useState<string | null>(initial[0]?.phone ?? null);
-  const [input,       setInput]       = useState('');
-  const [sending,     setSending]     = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>(initial);
+  const [selected, setSelected] = useState<string | null>(initial[0]?.phone ?? null);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
   const [quickSending, setQuickSending] = useState<string | null>(null);
-  const [hov,         setHov]         = useState<string | null>(null);
+  const [hov, setHov] = useState<string | null>(null);
   const [botDisabled, setBotDisabled] = useState<boolean>(false);
-  const [toggling,    setToggling]    = useState(false);
-  const [deleting,    setDeleting]    = useState<string | null>(null);
-  const [search,      setSearch]      = useState('');
-  const [showFilter,  setShowFilter]  = useState(false);
-  const [dateFrom,    setDateFrom]    = useState('');
-  const [dateTo,      setDateTo]      = useState('');
-  const [timeFrom,    setTimeFrom]    = useState('');
-  const [timeTo,      setTimeTo]      = useState('');
-  const [showEmoji,   setShowEmoji]   = useState(false);
-  const { isDark, toggleTheme }       = useTheme();
+  const [toggling, setToggling] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [showFilter, setShowFilter] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [timeFrom, setTimeFrom] = useState('');
+  const [timeTo, setTimeTo] = useState('');
+  const [showEmoji, setShowEmoji] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef  = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
-  const emojiRef  = useRef<HTMLDivElement>(null);
+  const emojiRef = useRef<HTMLDivElement>(null);
 
   const dateFilterActive = Boolean(dateFrom || dateTo || timeFrom || timeTo);
 
@@ -96,7 +114,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
     if (dateFilterActive) {
       const d = new Date(c.lastMessage.timestamp);
       if (dateFrom && d < new Date(`${dateFrom}T00:00:00`)) return false;
-      if (dateTo   && d > new Date(`${dateTo}T23:59:59`)) return false;
+      if (dateTo && d > new Date(`${dateTo}T23:59:59`)) return false;
       if (timeFrom || timeTo) {
         const mins = d.getHours() * 60 + d.getMinutes();
         if (timeFrom) {
@@ -130,12 +148,12 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
   useEffect(() => {
     const poll = setInterval(async () => {
       try {
-        const res  = await fetch('/api/messages');
+        const res = await fetch('/api/messages');
         const data = await res.json() as { messages: ChatMessage[] };
         setContacts(prev => {
           const updated = groupByPhone(data.messages);
           const prevTotal = prev.reduce((s, c) => s + c.messages.length, 0);
-          const newTotal  = updated.reduce((s, c) => s + c.messages.length, 0);
+          const newTotal = updated.reduce((s, c) => s + c.messages.length, 0);
           return newTotal !== prevTotal ? updated : prev;
         });
       } catch { /* ignore network errors */ }
@@ -149,7 +167,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
     fetch(`/api/contacts/${encodeURIComponent(selected)}/bot`)
       .then(r => r.json())
       .then((d: { disabled: boolean }) => setBotDisabled(d.disabled))
-      .catch(() => {});
+      .catch(() => { });
   }, [selected]);
 
   useEffect(() => {
@@ -169,7 +187,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
     if (!selected || toggling) return;
     setToggling(true);
     try {
-      const res  = await fetch(`/api/contacts/${encodeURIComponent(selected)}/bot`, { method: 'POST' });
+      const res = await fetch(`/api/contacts/${encodeURIComponent(selected)}/bot`, { method: 'POST' });
       const data = await res.json() as { disabled: boolean };
       setBotDisabled(data.disabled);
     } finally {
@@ -340,9 +358,9 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
               {search.trim() || dateFilterActive ? 'No matching conversations' : 'No conversations yet'}
             </div>
           ) : filteredContacts.map(c => {
-            const isActive   = c.phone === selected;
-            const isHovered  = hov === c.phone;
-            const h          = hueFromPhone(c.phone);
+            const isActive = c.phone === selected;
+            const isHovered = hov === c.phone;
+            const h = hueFromPhone(c.phone);
             return (
               <div
                 key={c.phone}
@@ -504,113 +522,149 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
             {/* Messages */}
             <div style={{
               flex: 1, overflowY: 'auto', padding: '20px 28px',
-              display: 'flex', flexDirection: 'column', gap: 16,
+              display: 'flex', flexDirection: 'column', gap: 12,
               background: isDark ? BG : '#f8fafc',
             }}>
-              {[...active.messages].reverse().map((msg, i) => (
-                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <span style={{
-                      fontSize: 10,
-                      color: isDark ? '#6b7280' : '#64748b',
-                      background: isDark ? '#0d1511' : '#e2e8f0',
-                      border: `1px solid ${isDark ? '#202d26' : '#cbd5e1'}`,
-                      borderRadius: 20, padding: '3px 10px',
-                    }}>
-                      {formatFull(msg.timestamp)}
-                    </span>
-                  </div>
-
-                  {msg.text !== '' && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                      <div style={{ maxWidth: '65%' }}>
-                        <div style={{ fontSize: 10, color: isDark ? '#6b7280' : '#64748b', marginBottom: 3, textAlign: 'right', paddingRight: 4 }}>Customer</div>
-                        <div style={{
-                          background: isDark
-                            ? `linear-gradient(135deg, ${NEON}, #3db854)`
-                            : `linear-gradient(135deg, #10b981, #059669)`,
-                          color: isDark ? '#000' : '#ffffff',
-                          padding: msg.mediaType === 'image' && msg.mediaUrl ? '5px' : '10px 14px',
-                          fontSize: 13, lineHeight: 1.55,
-                          borderRadius: '16px 16px 4px 16px',
-                          boxShadow: isDark ? '0 0 12px rgba(92,228,109,0.25)' : '0 2px 8px rgba(16,185,129,0.25)',
-                          fontWeight: 500, overflow: 'hidden',
-                        }}>
-                          {msg.mediaType === 'image' && msg.mediaUrl ? (
-                            <a
-                              href={`https://drive.google.com/file/d/${msg.mediaUrl}/view`}
-                              target="_blank" rel="noreferrer"
-                            >
-                              <img
-                                src={`https://drive.google.com/thumbnail?id=${msg.mediaUrl}&sz=w240`}
-                                alt="Payment screenshot"
-                                style={{ display: 'block', maxWidth: 240, maxHeight: 240, borderRadius: 11 }}
-                              />
-                            </a>
-                          ) : msg.mediaType === 'image' ? (
-                            <span style={{ fontSize: 20 }}>📷</span>
-                          ) : msg.text === '[image]' ? (
-                            <span style={{ fontSize: 20 }}>📷</span>
-                          ) : msg.text}
-                        </div>
-                      </div>
-                      <div style={{
-                        width: 30, height: 30, borderRadius: '50%', flexShrink: 0, alignSelf: 'flex-end',
-                        background: `hsla(${hueFromPhone(active.phone)},45%,${isDark ? '18%' : '90%'},1)`,
-                        border: `1.5px solid ${isDark ? NEON : '#10b981'}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 11, fontWeight: 700, color: isDark ? NEON : '#059669',
-                      }}>
-                        {phoneInitials(active.phone)}
-                      </div>
-                    </div>
-                  )}
-
-                  {(msg.reply !== '' || msg.text === '') && (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <div style={{
-                      width: 30, height: 30, borderRadius: '50%', flexShrink: 0, alignSelf: 'flex-end',
-                      background: isDark ? '#1a251f' : '#ecfdf5',
-                      border: `1.5px solid ${isDark ? NEON : '#10b981'}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13,
-                    }}>🤖</div>
-                    <div style={{ maxWidth: '65%' }}>
-                      <div style={{ fontSize: 10, color: isDark ? '#6b7280' : '#64748b', marginBottom: 3, paddingLeft: 4 }}>
-                        {msg.text === '' ? 'You (Admin)' : 'DataCrumbs AI'}
-                      </div>
-                      {msg.mediaType === 'document' && (
-                        <div style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 6,
-                          background: isDark ? 'rgba(92,228,109,0.08)' : '#ecfdf5',
-                          border: `1px solid ${isDark ? 'rgba(92,228,109,0.3)' : '#a7f3d0'}`,
-                          borderRadius: 8, padding: '5px 10px', fontSize: 12,
-                          color: isDark ? NEON : '#059669',
-                        }}>
-                          📄 Brochure sent
+              {(() => {
+                const ordered = [...active.messages].reverse();
+                return ordered.map((msg, i) => {
+                  const prevMsg = i > 0 ? ordered[i - 1] : null;
+                  const showDate = !prevMsg || new Date(msg.timestamp).toDateString() !== new Date(prevMsg.timestamp).toDateString();
+                  return (
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {showDate && (
+                        <div style={{ textAlign: 'center', margin: '8px 0 4px' }}>
+                          <span style={{
+                            fontSize: 10.5, fontWeight: 500,
+                            color: isDark ? '#9ca3af' : '#64748b',
+                            background: isDark ? '#0d1511' : '#e2e8f0',
+                            border: `1px solid ${isDark ? '#202d26' : '#cbd5e1'}`,
+                            borderRadius: 20, padding: '3px 12px',
+                            boxShadow: isDark ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 2px rgba(0,0,0,0.05)',
+                          }}>
+                            {formatDateSeparator(msg.timestamp)}
+                          </span>
                         </div>
                       )}
-                      <div style={{
-                        background: msg.text === ''
-                          ? (isDark ? 'linear-gradient(135deg, #1a3020, #0e1f14)' : '#ecfdf5')
-                          : (isDark ? 'linear-gradient(180deg, rgba(20,29,25,0.9) 0%, rgba(13,20,17,1) 100%)' : '#ffffff'),
-                        border: msg.text === ''
-                          ? `1px solid ${isDark ? NEON : '#10b981'}`
-                          : `1px solid ${isDark ? BORDER : '#e2e8f0'}`,
-                        color: msg.text === '' ? (isDark ? '#e5e7eb' : '#064e3b') : (isDark ? '#e5e7eb' : '#1e293b'),
-                        padding: '10px 14px', fontSize: 13, lineHeight: 1.6,
-                        borderRadius: '16px 16px 16px 4px',
-                        boxShadow: msg.text === ''
-                          ? (isDark ? `0 0 10px rgba(92,228,109,0.15)` : '0 1px 3px rgba(16,185,129,0.1)')
-                          : (isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.06)'),
-                        whiteSpace: 'pre-wrap',
-                      }}>
-                        {msg.reply}
-                      </div>
+
+                      {msg.text !== '' && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                          <div style={{ maxWidth: '68%' }}>
+                            <div style={{ fontSize: 10, color: isDark ? '#6b7280' : '#64748b', marginBottom: 2, textAlign: 'right', paddingRight: 4 }}>Customer</div>
+                            <div style={{
+                              background: isDark
+                                ? `linear-gradient(135deg, ${NEON}, #3db854)`
+                                : `linear-gradient(135deg, #10b981, #059669)`,
+                              color: isDark ? '#000' : '#ffffff',
+                              padding: msg.mediaType === 'image' && msg.mediaUrl ? '6px 6px 4px' : '8px 12px 5px',
+                              fontSize: 13, lineHeight: 1.5,
+                              borderRadius: '16px 16px 4px 16px',
+                              boxShadow: isDark ? '0 0 12px rgba(92,228,109,0.25)' : '0 2px 8px rgba(16,185,129,0.25)',
+                              fontWeight: 500, overflow: 'hidden',
+                            }}>
+                              {msg.mediaType === 'image' && msg.mediaUrl ? (
+                                <a
+                                  href={`https://drive.google.com/file/d/${msg.mediaUrl}/view`}
+                                  target="_blank" rel="noreferrer"
+                                >
+                                  <img
+                                    src={`https://drive.google.com/thumbnail?id=${msg.mediaUrl}&sz=w240`}
+                                    alt="Payment screenshot"
+                                    style={{ display: 'block', maxWidth: 240, maxHeight: 240, borderRadius: 11 }}
+                                  />
+                                </a>
+                              ) : msg.mediaType === 'image' ? (
+                                <span style={{ fontSize: 20 }}>📷</span>
+                              ) : msg.text === '[image]' ? (
+                                <span style={{ fontSize: 20 }}>📷</span>
+                              ) : (
+                                <div>{msg.text}</div>
+                              )}
+                              <div style={{
+                                fontSize: 9.5,
+                                color: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)',
+                                textAlign: 'right',
+                                marginTop: 3,
+                                fontWeight: 500,
+                              }}>
+                                {formatMessageTime(msg.timestamp)}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{
+                            width: 30, height: 30, borderRadius: '50%', flexShrink: 0, alignSelf: 'flex-end',
+                            background: `hsla(${hueFromPhone(active.phone)},45%,${isDark ? '18%' : '90%'},1)`,
+                            border: `1.5px solid ${isDark ? NEON : '#10b981'}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 11, fontWeight: 700, color: isDark ? NEON : '#059669',
+                          }}>
+                            {phoneInitials(active.phone)}
+                          </div>
+                        </div>
+                      )}
+
+                      {(msg.reply !== '' || msg.text === '') && (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <div style={{
+                            width: 30, height: 30, borderRadius: '50%', flexShrink: 0, alignSelf: 'flex-end',
+                            background: isDark ? '#1a251f' : '#ecfdf5',
+                            border: `1.5px solid ${isDark ? NEON : '#10b981'}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13,
+                          }}>🤖</div>
+                          <div style={{ maxWidth: '68%' }}>
+                            <div style={{ fontSize: 10, color: isDark ? '#6b7280' : '#64748b', marginBottom: 2, paddingLeft: 4 }}>
+                              {msg.text === '' ? 'You (Admin)' : 'DataCrumbs AI'}
+                            </div>
+                            {msg.mediaType === 'document' && (
+                              <div style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 6,
+                                background: isDark ? 'rgba(92,228,109,0.08)' : '#ecfdf5',
+                                border: `1px solid ${isDark ? 'rgba(92,228,109,0.3)' : '#a7f3d0'}`,
+                                borderRadius: 8, padding: '5px 10px', fontSize: 12,
+                                color: isDark ? NEON : '#059669',
+                              }}>
+                                📄 Brochure sent
+                              </div>
+                            )}
+                            <div style={{
+                              background: msg.text === ''
+                                ? (isDark ? 'linear-gradient(135deg, #1a3020, #0e1f14)' : '#ecfdf5')
+                                : (isDark ? 'linear-gradient(180deg, rgba(20,29,25,0.9) 0%, rgba(13,20,17,1) 100%)' : '#ffffff'),
+                              border: msg.text === ''
+                                ? `1px solid ${isDark ? NEON : '#10b981'}`
+                                : `1px solid ${isDark ? BORDER : '#e2e8f0'}`,
+                              color: msg.text === '' ? (isDark ? '#e5e7eb' : '#064e3b') : (isDark ? '#e5e7eb' : '#1e293b'),
+                              padding: '8px 12px 5px', fontSize: 13, lineHeight: 1.55,
+                              borderRadius: '16px 16px 16px 4px',
+                              boxShadow: msg.text === ''
+                                ? (isDark ? `0 0 10px rgba(92,228,109,0.15)` : '0 1px 3px rgba(16,185,129,0.1)')
+                                : (isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.06)'),
+                              whiteSpace: 'pre-wrap',
+                            }}>
+                              <div>{msg.reply}</div>
+                              <div style={{
+                                fontSize: 9.5,
+                                color: isDark ? '#6b7280' : '#94a3b8',
+                                textAlign: 'right',
+                                marginTop: 3,
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                alignItems: 'center',
+                                gap: 3,
+                              }}>
+                                <span>{formatMessageTime(msg.timestamp)}</span>
+                                {msg.text === '' && (
+                                  <span style={{ fontSize: 10, color: isDark ? NEON : '#10b981', fontWeight: 700 }}>✓✓</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  )}
-                </div>
-              ))}
+                  );
+                });
+              })()}
               <div ref={bottomRef} />
             </div>
 
