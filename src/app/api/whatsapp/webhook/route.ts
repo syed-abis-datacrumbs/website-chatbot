@@ -141,6 +141,16 @@ function mentionsFriend(text: string): boolean {
   return /\b(friend|dost|colleague|cousin|partner|group|bhai|friends)\b/i.test(text);
 }
 
+function isPureGreetingOrYes(text: string): boolean {
+  const t = text.trim().toLowerCase().replace(/[^\w\s]/g, '');
+  return /^(wsalam|walikum\s*salam|walaikum\s*assalam|wa\s*alaikum\s*assalam|salam|assalam|aoa|hi|hello|hey|yes|haan|ji|ji\s*haan|ok|okay|yup|theek|thik)$/i.test(t);
+}
+
+function isIslamicGreeting(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  return /\b(wsalam|walikum|walaikum|salam|assalam|aoa)\b/i.test(t);
+}
+
 // Extract explicit name introduced in conversation ("my name is Syed Abis", "I am Syed Abis")
 function extractExplicitNameFromText(text: string): string | null {
   if (!text || text.length > 100) return null;
@@ -773,6 +783,26 @@ export async function POST(req: NextRequest) {
 
       // ── 0a2. Automated AI Bootcamp Funnel: Message 2 ─────────────────────
       if (msgType === 'text' && contactProfile?.bootcampLeadPending) {
+        // If student replied with a pure greeting or simple yes/ok, don't dump payment yet!
+        if (isPureGreetingOrYes(text)) {
+          const reply = isIslamicGreeting(text)
+            ? `Wa Alaikum Assalam! 😊 Quick question: What is your educational background or current job role so we can ensure the batch is the right fit for you?`
+            : `Great! Could you share what your educational background or current job role is so we can confirm the batch fit?`;
+          await sendWhatsAppMessage(from, reply);
+          await saveMessage({ from, text, reply, timestamp: Date.now() });
+          return;
+        }
+
+        // If they ask a question instead of giving background, answer with AI and re-ask
+        const isQuestion = text.includes('?') || /\b(kya|kab|timing|class|fee|fees|cost|price|discount|outline|syllabus|what|when|where|how)\b/i.test(text);
+        if (isQuestion) {
+          const aiAnswer = await getAIReply(text, recentMsgs.map(m => ({ role: m.text ? 'user' : 'model', parts: [{ text: m.text || m.reply }] })), CORE_SYSTEM_PROMPT);
+          const reply = `${aiAnswer}\n\nBy the way, what is your educational background or current job role so we can confirm your eligibility?`;
+          await sendWhatsAppMessage(from, reply);
+          await saveMessage({ from, text, reply, timestamp: Date.now() });
+          return;
+        }
+
         const background = text.trim();
 
         // 1. Save student's background and advance state
