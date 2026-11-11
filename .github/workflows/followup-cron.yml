@@ -1,0 +1,26 @@
+name: "12-Hour Follow-Up Cron (8 AM, 4 PM & 12 AM PKT)"
+
+on:
+  schedule:
+    # 03:00 UTC = 08:00 AM PKT
+    # 11:00 UTC = 04:00 PM PKT
+    # 19:00 UTC = 12:00 AM PKT
+    - cron: '0 3,11,19 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI anytime
+
+jobs:
+  trigger-followups:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Follow-Up API
+        run: |
+          echo "Pinging 12-hour follow-up endpoint..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "https://agent.datacrumbs.org/api/cron/follow-up?secret=datacrumbs_followup_secret")
+          echo "$RESPONSE"
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Failed with HTTP status $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Successfully triggered follow-ups!"
+

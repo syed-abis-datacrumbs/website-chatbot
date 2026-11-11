@@ -111,11 +111,34 @@ function looksLikeName(text: string): boolean {
 }
 
 function extractEmailAndName(text: string): { email: string | null; name: string | null } {
+  let email: string | null = null;
   const emailMatch = text.match(EMAIL_RE);
-  const email = emailMatch ? emailMatch[0].toLowerCase() : null;
-  const nameCandidate = cleanName(text.replace(EMAIL_RE, ''));
+  if (emailMatch) {
+    email = emailMatch[0].toLowerCase();
+  } else {
+    // If student wrote email without .com (e.g., "aliaminsab234@gmail", "user@yahoo")
+    const partialMatch = text.match(/[^\s@,;]+@(gmail|yahoo|hotmail|outlook|icloud|live|proton|mail)(?:\.|$|\s)/i);
+    if (partialMatch) {
+      const base = partialMatch[0].trim().replace(/\.$/, '');
+      email = `${base.toLowerCase()}.com`;
+    }
+  }
+
+  const nameCandidate = cleanName(
+    text
+      .replace(EMAIL_RE, '')
+      .replace(/[^\s@,;]+@(gmail|yahoo|hotmail|outlook|icloud|live|proton|mail)[^\s]*/gi, '')
+  );
   const name = looksLikeName(nameCandidate) ? nameCandidate : null;
   return { email, name };
+}
+
+function isWaitMessage(text: string): boolean {
+  return /\b(wait|hold on|give me a moment|moment|thoda ruk|sabar|ruk|thori der|thoda time|share karta|share kar raha|sending shortly|sharing|wait some|just a sec|just a min|sending|send karta)\b/i.test(text);
+}
+
+function mentionsFriend(text: string): boolean {
+  return /\b(friend|dost|colleague|cousin|partner|group|bhai|friends)\b/i.test(text);
 }
 
 // Extract explicit name introduced in conversation ("my name is Syed Abis", "I am Syed Abis")
@@ -459,6 +482,14 @@ async function runEnrollmentMachine(
       }
       const { email } = extractEmailAndName(text);
       if (!email) {
+        if (isWaitMessage(text)) {
+          reply = `Sure, take your time! Share your email whenever you're ready 😊`;
+          break;
+        }
+        if (mentionsFriend(text)) {
+          reply = `That's awesome! If your friend also joins, you both get our 20% Group Discount 🎉\n\nWhenever you're ready, please share your *email address* to proceed!`;
+          break;
+        }
         // Use Gemini for any non-email reply (questions, "done", "okay", etc.)
         if (enrollmentSystemPrompt && text.trim()) {
           reply = await getAIReply(text, history, enrollmentSystemPrompt!);
@@ -850,7 +881,13 @@ export async function POST(req: NextRequest) {
         } else if (finalName && !finalEmail) {
           await saveContactProfile({ phone: from, name: finalName, discountCollectedName: finalName });
           await syncLeadNameIfNew(from, contactProfile?.name, finalName);
-          discountReply = `Thanks *${finalName}*! 😊 Could you also share your *email address*?\n\nExample: _johndoe@gmail.com_`;
+          if (isWaitMessage(text)) {
+            discountReply = `Sure, take your time! Share your email whenever you're ready 😊`;
+          } else if (mentionsFriend(text)) {
+            discountReply = `That's great! If your friend also joins, you both get our 20% Group Discount 🎉\n\nWhenever you're ready, please share your email address so we can forward your details to management!`;
+          } else {
+            discountReply = `Thanks *${finalName}*! 😊 Could you also share your *email address*?\n\nExample: _johndoe@gmail.com_`;
+          }
         } else {
           discountReply = `Please share your *full name* and *email address* so we can forward your request to the management team.\n\nExample: _John Doe, johndoe@gmail.com_`;
         }
@@ -894,7 +931,13 @@ export async function POST(req: NextRequest) {
         } else if (finalName && !finalEmail) {
           await saveContactProfile({ phone: from, name: finalName, demoCollectedName: finalName });
           await syncLeadNameIfNew(from, contactProfile?.name, finalName);
-          demoReply = `Thanks *${finalName}*! 😊 Could you also share your *email address*?\n\nExample: _johndoe@gmail.com_`;
+          if (isWaitMessage(text)) {
+            demoReply = `Sure, take your time! Share your email whenever you're ready 😊`;
+          } else if (mentionsFriend(text)) {
+            demoReply = `Awesome! If your friend also joins, you both get our 20% Group Discount 🎉\n\nWhenever you're ready, please share your email address so I can share your demo request!`;
+          } else {
+            demoReply = `Thanks *${finalName}*! 😊 Could you also share your *email address*?\n\nExample: _johndoe@gmail.com_`;
+          }
         } else {
           demoReply = `Please share your *full name* and *email address* so I can share this with our management team.\n\nExample: _John Doe, johndoe@gmail.com_`;
         }

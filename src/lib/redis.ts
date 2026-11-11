@@ -142,6 +142,9 @@ export interface ContactProfile {
   bootcampGoal?: string;
   bootcampLeadPending?: boolean; // Waiting for student's background/current role reply
   bootcampBackground?: string;
+  // Follow-up group trigger
+  followUpGroupSent?: boolean;
+  followUpGroupSentAt?: number;
 }
 
 export async function getContactProfile(phone: string): Promise<ContactProfile | null> {
@@ -195,6 +198,27 @@ export async function hasPriorMessages(phone: string): Promise<boolean> {
   const db  = await getDb();
   const doc = await db.collection('wa_messages').findOne({ from: phone }, { projection: { _id: 1 } });
   return !!doc;
+}
+
+export async function getInactiveUnpaidContacts(
+  minInactivityMs = 12 * 60 * 60 * 1000, // 12 hours
+  maxAgeMs = 23 * 60 * 60 * 1000,        // 23 hours (safely inside Meta's 24-hr window)
+): Promise<ContactProfile[]> {
+  const db = await getDb();
+  const now = Date.now();
+  const minTime = now - maxAgeMs;
+  const maxTime = now - minInactivityMs;
+
+  const contacts = await db
+    .collection<ContactProfile>('contact_profiles')
+    .find({
+      updatedAt: { $gte: minTime, $lte: maxTime },
+      botDisabled: { $ne: true },
+      followUpGroupSent: { $ne: true },
+    })
+    .toArray();
+
+  return contacts.map(({ _id, ...rest }) => rest as ContactProfile);
 }
 
 // Atomically claims "this phone is a brand-new lead" — used ONLY to gate the
