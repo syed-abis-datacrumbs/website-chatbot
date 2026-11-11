@@ -5,9 +5,9 @@ import { ChatMessage } from '@/lib/redis';
 import { WELCOME_GREETING } from '@/lib/knowledge';
 import { useTheme } from '@/context/ThemeContext';
 
-const NEON   = '#5ce46d';
-const BG     = '#090d0b';
-const GLASS  = 'linear-gradient(180deg, rgba(20,29,25,0.8) 0%, rgba(13,20,17,0.9) 100%)';
+const NEON = '#5ce46d';
+const BG = '#090d0b';
+const GLASS = 'linear-gradient(180deg, rgba(20,29,25,0.8) 0%, rgba(13,20,17,0.9) 100%)';
 const BORDER = '#202d26';
 
 // Quick-reply buttons above the admin input — click to send instantly, no typing needed
@@ -19,7 +19,7 @@ const QUICK_ACTIONS: { label: string; message?: string; sendBrochure?: boolean }
   { label: 'Duration', message: `Our AI & Data Science Bootcamp is *4 Months (16 Weeks)*.\n\nUpon completion, you'll also get a *guaranteed 1-2 month industry internship*! 🚀` },
 ];
 
-const EMOJI_PICKS = ['😊','👍','🙏','🎉','❤️','🔥','✅','😀','🚀','👋','💡','📅','💰','📄','🤝','😅'];
+const EMOJI_PICKS = ['😊', '👍', '🙏', '🎉', '❤️', '🔥', '✅', '😀', '🚀', '👋', '💡', '📅', '💰', '📄', '🤝', '😅'];
 
 interface Contact {
   phone: string;
@@ -30,12 +30,12 @@ interface Contact {
 function formatTime(ts: number) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
-  const hrs  = Math.floor(diff / 3600000);
+  const hrs = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  if (mins < 1)  return 'just now';
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
-  if (hrs  < 24) return `${hrs}h ago`;
-  if (days <  7) return `${days}d ago`;
+  if (hrs < 24) return `${hrs}h ago`;
+  if (days < 7) return `${days}d ago`;
   return new Date(ts).toLocaleDateString('en-PK', { day: 'numeric', month: 'short' });
 }
 
@@ -85,27 +85,27 @@ function groupByPhone(messages: ChatMessage[]): Contact[] {
 }
 
 export default function ChatsUI({ contacts: initial, total }: { contacts: Contact[]; total: number }) {
-  const [contacts,    setContacts]    = useState<Contact[]>(initial);
-  const [selected,    setSelected]    = useState<string | null>(initial[0]?.phone ?? null);
-  const [input,       setInput]       = useState('');
-  const [sending,     setSending]     = useState(false);
-  const [quickSending, setQuickSending] = useState<string | null>(null);
-  const [hov,         setHov]         = useState<string | null>(null);
+  const [contacts, setContacts] = useState<Contact[]>(initial);
+  const [selected, setSelected] = useState<string | null>(initial[0]?.phone ?? null);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [attachBrochure, setAttachBrochure] = useState(false);
+  const [hov, setHov] = useState<string | null>(null);
   const [botDisabled, setBotDisabled] = useState<boolean>(false);
-  const [toggling,    setToggling]    = useState(false);
-  const [deleting,    setDeleting]    = useState<string | null>(null);
-  const [search,      setSearch]      = useState('');
-  const [showFilter,  setShowFilter]  = useState(false);
-  const [dateFrom,    setDateFrom]    = useState('');
-  const [dateTo,      setDateTo]      = useState('');
-  const [timeFrom,    setTimeFrom]    = useState('');
-  const [timeTo,      setTimeTo]      = useState('');
-  const [showEmoji,   setShowEmoji]   = useState(false);
-  const { isDark, toggleTheme }       = useTheme();
+  const [toggling, setToggling] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [showFilter, setShowFilter] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [timeFrom, setTimeFrom] = useState('');
+  const [timeTo, setTimeTo] = useState('');
+  const [showEmoji, setShowEmoji] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef  = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
-  const emojiRef  = useRef<HTMLDivElement>(null);
+  const emojiRef = useRef<HTMLDivElement>(null);
 
   const dateFilterActive = Boolean(dateFrom || dateTo || timeFrom || timeTo);
 
@@ -114,7 +114,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
     if (dateFilterActive) {
       const d = new Date(c.lastMessage.timestamp);
       if (dateFrom && d < new Date(`${dateFrom}T00:00:00`)) return false;
-      if (dateTo   && d > new Date(`${dateTo}T23:59:59`)) return false;
+      if (dateTo && d > new Date(`${dateTo}T23:59:59`)) return false;
       if (timeFrom || timeTo) {
         const mins = d.getHours() * 60 + d.getMinutes();
         if (timeFrom) {
@@ -148,12 +148,12 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
   useEffect(() => {
     const poll = setInterval(async () => {
       try {
-        const res  = await fetch('/api/messages');
+        const res = await fetch('/api/messages');
         const data = await res.json() as { messages: ChatMessage[] };
         setContacts(prev => {
           const updated = groupByPhone(data.messages);
           const prevTotal = prev.reduce((s, c) => s + c.messages.length, 0);
-          const newTotal  = updated.reduce((s, c) => s + c.messages.length, 0);
+          const newTotal = updated.reduce((s, c) => s + c.messages.length, 0);
           return newTotal !== prevTotal ? updated : prev;
         });
       } catch { /* ignore network errors */ }
@@ -167,11 +167,12 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
     fetch(`/api/contacts/${encodeURIComponent(selected)}/bot`)
       .then(r => r.json())
       .then((d: { disabled: boolean }) => setBotDisabled(d.disabled))
-      .catch(() => {});
+      .catch(() => { });
   }, [selected]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'instant' });
+    setAttachBrochure(false);
     inputRef.current?.focus();
   }, [selected]);
 
@@ -187,7 +188,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
     if (!selected || toggling) return;
     setToggling(true);
     try {
-      const res  = await fetch(`/api/contacts/${encodeURIComponent(selected)}/bot`, { method: 'POST' });
+      const res = await fetch(`/api/contacts/${encodeURIComponent(selected)}/bot`, { method: 'POST' });
       const data = await res.json() as { disabled: boolean };
       setBotDisabled(data.disabled);
     } finally {
@@ -214,29 +215,15 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
     const text = input.trim();
     if (!text || !selected || sending) return;
     setSending(true);
+    const brochureToSend = attachBrochure;
     setInput('');
-    const optimistic: ChatMessage = { from: selected, text: '', reply: text, timestamp: Date.now() };
-    setContacts(prev => prev.map(c =>
-      c.phone === selected
-        ? { ...c, messages: [optimistic, ...c.messages], lastMessage: optimistic }
-        : c
-    ));
-    try {
-      await fetch('/api/whatsapp/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: selected, message: text }),
-      });
-    } catch { /* optimistic shown */ }
-    finally { setSending(false); }
-  }
-
-  async function handleQuickAction(action: typeof QUICK_ACTIONS[number]) {
-    if (!selected || quickSending) return;
-    setQuickSending(action.label);
+    setAttachBrochure(false);
     const optimistic: ChatMessage = {
-      from: selected, text: '', reply: action.message ?? '', timestamp: Date.now(),
-      ...(action.sendBrochure ? { mediaType: 'document' as const } : {}),
+      from: selected,
+      text: '',
+      reply: text,
+      timestamp: Date.now(),
+      ...(brochureToSend ? { mediaType: 'document' as const } : {}),
     };
     setContacts(prev => prev.map(c =>
       c.phone === selected
@@ -247,10 +234,21 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
       await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: selected, message: action.message, sendBrochure: action.sendBrochure }),
+        body: JSON.stringify({
+          to: selected,
+          message: text,
+          sendBrochure: brochureToSend,
+        }),
       });
     } catch { /* optimistic shown */ }
-    finally { setQuickSending(null); }
+    finally { setSending(false); }
+  }
+
+  function handleQuickAction(action: typeof QUICK_ACTIONS[number]) {
+    if (!action.message) return;
+    setInput(action.message);
+    setAttachBrochure(Boolean(action.sendBrochure));
+    inputRef.current?.focus();
   }
 
   return (
@@ -358,9 +356,9 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
               {search.trim() || dateFilterActive ? 'No matching conversations' : 'No conversations yet'}
             </div>
           ) : filteredContacts.map(c => {
-            const isActive   = c.phone === selected;
-            const isHovered  = hov === c.phone;
-            const h          = hueFromPhone(c.phone);
+            const isActive = c.phone === selected;
+            const isHovered = hov === c.phone;
+            const h = hueFromPhone(c.phone);
             return (
               <div
                 key={c.phone}
@@ -674,31 +672,48 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
               borderTop: `1px solid ${isDark ? BORDER : '#e2e8f0'}`,
               padding: '10px 20px 14px',
             }}>
-              {/* Quick-reply buttons — click to send instantly, no typing needed */}
+              {/* Quick-reply templates — click to load into message box */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 9 }}>
-                {QUICK_ACTIONS.map(action => {
-                  const isLoading = quickSending === action.label;
-                  return (
-                    <button
-                      key={action.label}
-                      onClick={() => handleQuickAction(action)}
-                      disabled={quickSending !== null}
-                      style={{
-                        fontSize: 11.5, fontWeight: 500,
-                        padding: '5px 12px', borderRadius: 20,
-                        background: isDark ? 'rgba(92,228,109,0.08)' : '#ecfdf5',
-                        border: `1px solid ${isDark ? 'rgba(92,228,109,0.25)' : '#a7f3d0'}`,
-                        color: isLoading ? '#6b7280' : (isDark ? NEON : '#059669'),
-                        cursor: quickSending !== null ? 'not-allowed' : 'pointer',
-                        opacity: quickSending !== null && !isLoading ? 0.5 : 1,
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {isLoading ? 'Sending…' : action.label}
-                    </button>
-                  );
-                })}
+                {QUICK_ACTIONS.map(action => (
+                  <button
+                    key={action.label}
+                    onClick={() => handleQuickAction(action)}
+                    title={`Load "${action.label}" template into message box`}
+                    style={{
+                      fontSize: 11.5, fontWeight: 500,
+                      padding: '5px 12px', borderRadius: 20,
+                      background: isDark ? 'rgba(92,228,109,0.08)' : '#ecfdf5',
+                      border: `1px solid ${isDark ? 'rgba(92,228,109,0.25)' : '#a7f3d0'}`,
+                      color: isDark ? NEON : '#059669',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {action.label}
+                  </button>
+                ))}
               </div>
+              {attachBrochure && (
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  background: isDark ? 'rgba(92,228,109,0.12)' : '#ecfdf5',
+                  border: `1px solid ${isDark ? 'rgba(92,228,109,0.35)' : '#a7f3d0'}`,
+                  borderRadius: 8, padding: '4px 10px', fontSize: 11.5,
+                  color: isDark ? NEON : '#059669', marginBottom: 7,
+                }}>
+                  <span>📄 Attached: Bootcamp Brochure PDF (sent with message)</span>
+                  <button
+                    onClick={() => setAttachBrochure(false)}
+                    title="Remove PDF attachment"
+                    style={{
+                      background: 'transparent', border: 'none', color: isDark ? '#9ca3af' : '#64748b',
+                      cursor: 'pointer', fontSize: 13, padding: '0 2px', lineHeight: 1, fontWeight: 700,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 fontSize: 11, color: isDark ? '#6b7280' : '#64748b', marginBottom: 6,
