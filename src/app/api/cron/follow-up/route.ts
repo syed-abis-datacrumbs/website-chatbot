@@ -9,8 +9,11 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
-  return handleFollowUps(req);
+export async function GET() {
+  return NextResponse.json({
+    status: 'active',
+    description: '12-hour follow-up cron endpoint. Only POST requests with valid secret are executed.',
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -19,11 +22,11 @@ export async function POST(req: NextRequest) {
 
 async function handleFollowUps(req: NextRequest) {
   try {
-    // Optional bearer/secret check
+    // Strictly require authorization secret
     const secret = req.nextUrl.searchParams.get('secret') || req.headers.get('authorization')?.replace('Bearer ', '');
     const expectedSecret = process.env.CRON_SECRET || 'datacrumbs_followup_secret';
-    if (secret && secret !== expectedSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!secret || secret !== expectedSecret) {
+      return NextResponse.json({ error: 'Unauthorized: Valid secret required' }, { status: 401 });
     }
 
     // 12 hours minimum inactivity, max 23 hours (strictly inside Meta's 24-hr customer service window)

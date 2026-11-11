@@ -67,10 +67,8 @@ function buildBootcampPaymentMsg(background?: string) {
   let opening: string;
   if (isTechOrCS) {
     opening = `That's awesome! With your tech and software background, you're an ideal fit for this cohort — you'll be able to quickly master advanced Agentic AI architectures, MCP servers, and multi-agent systems. 🚀`;
-  } else if (bg && !/\b(none|nothing|student|graduate)\b/i.test(bg)) {
-    opening = `That's great! We actually have several graduates and professionals from diverse backgrounds making the transition in this cohort, because we start right from fundamentals before building live AI Agents and real-world projects. 🚀`;
   } else {
-    opening = `That's great! You'll be building live AI Agents, full-stack AI web apps, and autonomous systems in this cohort. 🚀`;
+    opening = `That's great! We actually have several non-CS graduates and professionals making the switch in this cohort, because we start right from Python fundamentals before building live AI Agents and RAG systems.`;
   }
 
   return `${opening}
