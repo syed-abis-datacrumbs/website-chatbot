@@ -5,9 +5,9 @@ import { ChatMessage } from '@/lib/redis';
 import { WELCOME_GREETING } from '@/lib/knowledge';
 import { useTheme } from '@/context/ThemeContext';
 
-const NEON = '#5ce46d';
-const BG = '#090d0b';
-const GLASS = 'linear-gradient(180deg, rgba(20,29,25,0.8) 0%, rgba(13,20,17,0.9) 100%)';
+const NEON   = '#5ce46d';
+const BG     = '#090d0b';
+const GLASS  = 'linear-gradient(180deg, rgba(20,29,25,0.8) 0%, rgba(13,20,17,0.9) 100%)';
 const BORDER = '#202d26';
 
 // Quick-reply buttons above the admin input — click to send instantly, no typing needed
@@ -19,7 +19,7 @@ const QUICK_ACTIONS: { label: string; message?: string; sendBrochure?: boolean }
   { label: 'Duration', message: `Our AI & Data Science Bootcamp is *4 Months (16 Weeks)*.\n\nUpon completion, you'll also get a *guaranteed 1-2 month industry internship*! 🚀` },
 ];
 
-const EMOJI_PICKS = ['😊', '👍', '🙏', '🎉', '❤️', '🔥', '✅', '😀', '🚀', '👋', '💡', '📅', '💰', '📄', '🤝', '😅'];
+const EMOJI_PICKS = ['😊','👍','🙏','🎉','❤️','🔥','✅','😀','🚀','👋','💡','📅','💰','📄','🤝','😅'];
 
 interface Contact {
   phone: string;
@@ -30,12 +30,12 @@ interface Contact {
 function formatTime(ts: number) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
-  const hrs = Math.floor(diff / 3600000);
+  const hrs  = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  if (mins < 1) return 'just now';
+  if (mins < 1)  return 'just now';
   if (mins < 60) return `${mins}m ago`;
-  if (hrs < 24) return `${hrs}h ago`;
-  if (days < 7) return `${days}d ago`;
+  if (hrs  < 24) return `${hrs}h ago`;
+  if (days <  7) return `${days}d ago`;
   return new Date(ts).toLocaleDateString('en-PK', { day: 'numeric', month: 'short' });
 }
 
@@ -85,27 +85,27 @@ function groupByPhone(messages: ChatMessage[]): Contact[] {
 }
 
 export default function ChatsUI({ contacts: initial, total }: { contacts: Contact[]; total: number }) {
-  const [contacts, setContacts] = useState<Contact[]>(initial);
-  const [selected, setSelected] = useState<string | null>(initial[0]?.phone ?? null);
-  const [input, setInput] = useState('');
-  const [sending, setSending] = useState(false);
+  const [contacts,    setContacts]    = useState<Contact[]>(initial);
+  const [selected,    setSelected]    = useState<string | null>(initial[0]?.phone ?? null);
+  const [input,       setInput]       = useState('');
+  const [sending,     setSending]     = useState(false);
   const [quickSending, setQuickSending] = useState<string | null>(null);
-  const [hov, setHov] = useState<string | null>(null);
+  const [hov,         setHov]         = useState<string | null>(null);
   const [botDisabled, setBotDisabled] = useState<boolean>(false);
-  const [toggling, setToggling] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [showFilter, setShowFilter] = useState(false);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [timeFrom, setTimeFrom] = useState('');
-  const [timeTo, setTimeTo] = useState('');
-  const [showEmoji, setShowEmoji] = useState(false);
-  const { isDark, toggleTheme } = useTheme();
+  const [toggling,    setToggling]    = useState(false);
+  const [deleting,    setDeleting]    = useState<string | null>(null);
+  const [search,      setSearch]      = useState('');
+  const [showFilter,  setShowFilter]  = useState(false);
+  const [dateFrom,    setDateFrom]    = useState('');
+  const [dateTo,      setDateTo]      = useState('');
+  const [timeFrom,    setTimeFrom]    = useState('');
+  const [timeTo,      setTimeTo]      = useState('');
+  const [showEmoji,   setShowEmoji]   = useState(false);
+  const { isDark, toggleTheme }       = useTheme();
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
-  const emojiRef = useRef<HTMLDivElement>(null);
+  const emojiRef  = useRef<HTMLDivElement>(null);
 
   const dateFilterActive = Boolean(dateFrom || dateTo || timeFrom || timeTo);
 
@@ -114,7 +114,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
     if (dateFilterActive) {
       const d = new Date(c.lastMessage.timestamp);
       if (dateFrom && d < new Date(`${dateFrom}T00:00:00`)) return false;
-      if (dateTo && d > new Date(`${dateTo}T23:59:59`)) return false;
+      if (dateTo   && d > new Date(`${dateTo}T23:59:59`)) return false;
       if (timeFrom || timeTo) {
         const mins = d.getHours() * 60 + d.getMinutes();
         if (timeFrom) {
@@ -148,12 +148,12 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
   useEffect(() => {
     const poll = setInterval(async () => {
       try {
-        const res = await fetch('/api/messages');
+        const res  = await fetch('/api/messages');
         const data = await res.json() as { messages: ChatMessage[] };
         setContacts(prev => {
           const updated = groupByPhone(data.messages);
           const prevTotal = prev.reduce((s, c) => s + c.messages.length, 0);
-          const newTotal = updated.reduce((s, c) => s + c.messages.length, 0);
+          const newTotal  = updated.reduce((s, c) => s + c.messages.length, 0);
           return newTotal !== prevTotal ? updated : prev;
         });
       } catch { /* ignore network errors */ }
@@ -167,7 +167,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
     fetch(`/api/contacts/${encodeURIComponent(selected)}/bot`)
       .then(r => r.json())
       .then((d: { disabled: boolean }) => setBotDisabled(d.disabled))
-      .catch(() => { });
+      .catch(() => {});
   }, [selected]);
 
   useEffect(() => {
@@ -187,7 +187,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
     if (!selected || toggling) return;
     setToggling(true);
     try {
-      const res = await fetch(`/api/contacts/${encodeURIComponent(selected)}/bot`, { method: 'POST' });
+      const res  = await fetch(`/api/contacts/${encodeURIComponent(selected)}/bot`, { method: 'POST' });
       const data = await res.json() as { disabled: boolean };
       setBotDisabled(data.disabled);
     } finally {
@@ -358,9 +358,9 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
               {search.trim() || dateFilterActive ? 'No matching conversations' : 'No conversations yet'}
             </div>
           ) : filteredContacts.map(c => {
-            const isActive = c.phone === selected;
-            const isHovered = hov === c.phone;
-            const h = hueFromPhone(c.phone);
+            const isActive   = c.phone === selected;
+            const isHovered  = hov === c.phone;
+            const h          = hueFromPhone(c.phone);
             return (
               <div
                 key={c.phone}
