@@ -153,7 +153,26 @@ function mentionsFriend(text: string): boolean {
 
 function isPureGreetingOrYes(text: string): boolean {
   const t = text.trim().toLowerCase().replace(/[^\w\s]/g, '');
-  return /^(wsalam|walikum\s*salam|walaikum\s*assalam|wa\s*alaikum\s*assalam|salam|assalam|aoa|hi|hello|hey|yes|haan|ji|ji\s*haan|ok|okay|yup|theek|thik)$/i.test(t);
+  return /^(g|jee|ji|han|haan|haanji|hanji|yes|yeah|yep|yup|ok|okay|k|sahi|acha|achha|theek|thik|hmm|hmmm|wsalam|walikum\s*salam|walaikum\s*assalam|wa\s*alaikum\s*assalam|salam|assalam|aoa|hi|hello|hey)$/i.test(t);
+}
+
+function looksLikeBackgroundOrJob(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  if (t.length < 2) return false;
+
+  // Degrees, levels & educational terms
+  const eduKeywords = /\b(cs|bs|bcs|bse|ms|se|it|bsc|msc|btech|mtech|bba|mba|acma|ca|acca|cfa|fsc|ics|fa|i\.?com|b\.?com|matric|alevel|o-level|a-level|inter|intermediate|phd|bachelor|bachelors|master|masters|degree|graduate|graduated|graduation|undergrad|undergraduate|student|matriculation|dae|diploma)\b/i;
+
+  // Academic fields & domains
+  const fieldKeywords = /\b(computer\s*science|software|engineering|engineer|electrical|mechanical|civil|chemical|telecom|biomedical|mechatronics|accounting|finance|commerce|business|economics|marketing|humanities|arts|science|pre-medical|pre-engineering|medical|pharmacy|mbbs|dvm|agriculture|data|statistics|ai|artificial\s*intelligence|machine\s*learning|web\s*dev)\b/i;
+
+  // Job roles, titles & employment status
+  const jobKeywords = /\b(developer|dev|programmer|coder|job|working|work|employed|employee|intern|internship|freelancer|freelance|designer|ui\/ux|graphic|manager|officer|consultant|analyst|accountant|teacher|lecturer|professor|doctor|banker|sales|marketer|executive|specialist|lead|founder|store|shop|self-employed|unemployed|fresh|experience|experienced)\b/i;
+
+  // Explicit statements: "I am a...", "I did...", "I have done...", "working on...", "studying..."
+  const phraseKeywords = /\b(?:i am|i'm|i did|i have done|completed|passed|studying|studied|currently in|my background is|field is|degree in|graduated in|working as|work as|working on|work on|background in)\b/i;
+
+  return eduKeywords.test(t) || fieldKeywords.test(t) || jobKeywords.test(t) || phraseKeywords.test(t);
 }
 
 function isIslamicGreeting(text: string): boolean {
@@ -793,7 +812,7 @@ export async function POST(req: NextRequest) {
 
       // ── 0a2. Automated AI Bootcamp Funnel: Message 2 ─────────────────────
       if (msgType === 'text' && contactProfile?.bootcampLeadPending) {
-        // If student replied with a pure greeting or simple yes/ok, don't dump payment yet!
+        // 1. If student replied with a pure greeting or simple acknowledgement ("Walikum Salam", "G", "ok", "haan", "ji")
         if (isPureGreetingOrYes(text)) {
           const reply = isIslamicGreeting(text)
             ? `Wa Alaikum Assalam! 😊 Quick question: What is your educational background or current job role so we can ensure the batch is the right fit for you?`
@@ -803,16 +822,24 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        // If they ask a question instead of giving background, answer with AI and re-ask
-        const isQuestion = text.includes('?') || /\b(kya|kab|timing|class|fee|fees|cost|price|discount|outline|syllabus|what|when|where|how)\b/i.test(text);
-        if (isQuestion) {
-          const aiAnswer = await getAIReply(text, recentMsgs.map(m => ({ role: m.text ? 'user' : 'model', parts: [{ text: m.text || m.reply }] })), CORE_SYSTEM_PROMPT);
+        // 2. Only proceed to payment if the user ACTUALLY shares an educational background or job role!
+        const hasBackground = looksLikeBackgroundOrJob(text);
+
+        if (!hasBackground) {
+          // They asked a question OR wrote a general/unrelated remark (e.g. "Starting date", "who are you", etc.)
+          // Answer their query with AI and gently re-ask for background
+          const history = recentMsgs.map(m => ({
+            role: (m.text && m.text !== '[image]' ? 'user' : 'model') as 'user' | 'model',
+            parts: [{ text: m.text || m.reply }],
+          }));
+          const aiAnswer = await getAIReply(text, history, CORE_SYSTEM_PROMPT);
           const reply = `${aiAnswer}\n\nBy the way, what is your educational background or current job role so we can confirm your eligibility?`;
           await sendWhatsAppMessage(from, reply);
           await saveMessage({ from, text, reply, timestamp: Date.now() });
           return;
         }
 
+        // 3. User genuinely provided their background!
         const background = text.trim();
 
         // 1. Save student's background and advance state
