@@ -85,7 +85,7 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
   const [showEmoji,   setShowEmoji]   = useState(false);
   const { isDark, toggleTheme }       = useTheme();
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef  = useRef<HTMLInputElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
   const emojiRef  = useRef<HTMLDivElement>(null);
 
@@ -156,6 +156,14 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
     bottomRef.current?.scrollIntoView({ behavior: 'instant' });
     inputRef.current?.focus();
   }, [selected]);
+
+  // Auto-expand textarea as user types or pastes multi-line text
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 140)}px`;
+    }
+  }, [input]);
 
   async function toggleBot() {
     if (!selected || toggling) return;
@@ -637,31 +645,69 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
                   );
                 })}
               </div>
-              <div style={{ fontSize: 11, color: isDark ? '#6b7280' : '#64748b', marginBottom: 7 }}>
-                Send as admin to <strong style={{ color: isDark ? '#9ca3af' : '#334155' }}>+{active.phone}</strong>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                fontSize: 11, color: isDark ? '#6b7280' : '#64748b', marginBottom: 6,
+              }}>
+                <div>
+                  Send as admin to <strong style={{ color: isDark ? '#9ca3af' : '#334155' }}>+{active.phone}</strong>
+                </div>
+                <div style={{ fontSize: 10.5, color: isDark ? '#6b7280' : '#94a3b8' }}>
+                  <kbd style={{ fontFamily: 'inherit', background: isDark ? '#141d19' : '#e2e8f0', padding: '1px 5px', borderRadius: 4, border: `1px solid ${isDark ? BORDER : '#cbd5e1'}` }}>Enter</kbd> to send • <kbd style={{ fontFamily: 'inherit', background: isDark ? '#141d19' : '#e2e8f0', padding: '1px 5px', borderRadius: 4, border: `1px solid ${isDark ? BORDER : '#cbd5e1'}` }}>Shift + Enter</kbd> for new line
+                </div>
               </div>
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
+                display: 'flex', alignItems: 'flex-end', gap: 8,
                 background: isDark ? '#0a0f0d' : '#f8fafc',
-                borderRadius: 28,
-                padding: '5px 5px 5px 16px',
+                borderRadius: 20,
+                padding: '6px 8px 6px 14px',
                 border: `1.5px solid ${isDark ? BORDER : '#cbd5e1'}`,
               }}>
-                <input
+                <textarea
                   ref={inputRef}
-                  type="text"
                   value={input}
                   onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                  placeholder="Type a message…"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                        // Allow line break. If Ctrl/Cmd is used without Shift, manually insert \n
+                        if (!e.shiftKey) {
+                          e.preventDefault();
+                          const target = e.currentTarget;
+                          const start = target.selectionStart;
+                          const end = target.selectionEnd;
+                          const val = target.value;
+                          const newVal = val.substring(0, start) + '\n' + val.substring(end);
+                          setInput(newVal);
+                          requestAnimationFrame(() => {
+                            target.selectionStart = target.selectionEnd = start + 1;
+                          });
+                        }
+                        return;
+                      }
+                      // Plain Enter: send message immediately
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder="Type a message… (Enter to send, Shift + Enter for new line)"
                   disabled={sending}
+                  rows={1}
                   style={{
                     flex: 1, border: 'none', outline: 'none',
                     background: 'transparent', fontSize: 13.5,
+                    lineHeight: 1.45,
                     color: isDark ? '#e5e7eb' : '#0f172a', fontFamily: 'inherit',
+                    resize: 'none',
+                    minHeight: 22,
+                    maxHeight: 140,
+                    overflowY: 'auto',
+                    padding: '4px 0',
+                    margin: 0,
+                    whiteSpace: 'pre-wrap',
                   }}
                 />
-                <div style={{ position: 'relative' }} ref={emojiRef}>
+                <div style={{ position: 'relative', marginBottom: 2 }} ref={emojiRef}>
                   <button
                     onClick={() => setShowEmoji(v => !v)}
                     title="Emoji"
