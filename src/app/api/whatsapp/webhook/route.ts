@@ -161,13 +161,13 @@ function looksLikeBackgroundOrJob(text: string): boolean {
   if (t.length < 2) return false;
 
   // Degrees, levels & educational terms
-  const eduKeywords = /\b(cs|bs|bcs|bse|ms|se|it|bsc|msc|btech|mtech|bba|mba|acma|ca|acca|cfa|fsc|ics|fa|i\.?com|b\.?com|matric|alevel|o-level|a-level|inter|intermediate|phd|bachelor|bachelors|master|masters|degree|graduate|graduated|graduation|undergrad|undergraduate|student|matriculation|dae|diploma)\b/i;
+  const eduKeywords = /\b(cs|bs|bcs|bse|ms|se|it|bsc|msc|btech|mtech|bba|mba|b\.?ed|m\.?ed|bed|med|acma|ca|acca|cfa|fsc|ics|fa|i\.?com|icom|b\.?com|bcom|m\.?com|mcom|llb|llm|mbbs|bds|dvm|pharm-?d|matric|alevel|o-level|a-level|inter|intermediate|phd|bachelor|bachelors|master|masters|degree|graduate|graduated|graduation|undergrad|undergraduate|student|matriculation|dae|diploma)\b/i;
 
   // Academic fields & domains
-  const fieldKeywords = /\b(computer\s*science|software|engineering|engineer|electrical|mechanical|civil|chemical|telecom|biomedical|mechatronics|accounting|finance|commerce|business|economics|marketing|humanities|arts|science|pre-medical|pre-engineering|medical|pharmacy|mbbs|dvm|agriculture|data|statistics|ai|artificial\s*intelligence|machine\s*learning|web\s*dev)\b/i;
+  const fieldKeywords = /\b(computer\s*science|software|engineering|engineer|electrical|mechanical|civil|chemical|telecom|biomedical|mechatronics|accounting|finance|commerce|business|economics|marketing|humanities|arts|science|education|teaching|pre-medical|pre-engineering|medical|pharmacy|mbbs|dvm|agriculture|data|statistics|ai|artificial\s*intelligence|machine\s*learning|web\s*dev)\b/i;
 
   // Job roles, titles & employment status
-  const jobKeywords = /\b(developer|dev|programmer|coder|job|working|work|employed|employee|intern|internship|freelancer|freelance|designer|ui\/ux|graphic|manager|officer|consultant|analyst|accountant|teacher|lecturer|professor|doctor|banker|sales|marketer|executive|specialist|lead|founder|store|shop|self-employed|unemployed|fresh|experience|experienced)\b/i;
+  const jobKeywords = /\b(developer|dev|programmer|coder|job|working|work|employed|employee|intern|internship|freelancer|freelance|designer|ui\/ux|graphic|manager|officer|consultant|analyst|accountant|teacher|teaching|educator|lecturer|professor|doctor|banker|sales|marketer|executive|specialist|lead|founder|store|shop|self-employed|unemployed|fresh|experience|experienced)\b/i;
 
   // Explicit statements: "I am a...", "I did...", "I have done...", "working on...", "studying..."
   const phraseKeywords = /\b(?:i am|i'm|i did|i have done|completed|passed|studying|studied|currently in|my background is|field is|degree in|graduated in|working as|work as|working on|work on|background in)\b/i;

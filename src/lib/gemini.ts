@@ -14,41 +14,56 @@ export async function getAIReply(
   systemPromptOverride?: string | null
 ): Promise<string> {
   const systemInstruction = systemPromptOverride ?? CORE_SYSTEM_PROMPT;
-
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction,
-  });
+  const primaryModelName = process.env.GEMINI_MODEL || 'gemini-3.1-pro';
 
   const safeHistory = [...history];
   while (safeHistory.length > 0 && safeHistory[0].role !== 'user') {
     safeHistory.shift();
   }
 
-  const tryReply = async (hist: HistoryMessage[]): Promise<string | null> => {
-    const chat   = model.startChat({ history: hist });
-    const result = await chat.sendMessage(userMessage);
+  const tryWithModel = async (modelName: string): Promise<string | null> => {
     try {
-      return result.response.text();
-    } catch {
-      console.warn('[gemini] blocked:', result.response.candidates?.[0]?.finishReason);
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction,
+      });
+
+      const tryReply = async (hist: HistoryMessage[]): Promise<string | null> => {
+        const chat = model.startChat({ history: hist });
+        const result = await chat.sendMessage(userMessage);
+        try {
+          return result.response.text();
+        } catch {
+          console.warn(`[gemini:${modelName}] blocked:`, result.response.candidates?.[0]?.finishReason);
+          return null;
+        }
+      };
+
+      const first = await tryReply(safeHistory);
+      if (first !== null) return first;
+
+      const trimmed = safeHistory.slice(-4);
+      while (trimmed.length > 0 && trimmed[0].role !== 'user') trimmed.shift();
+      return await tryReply(trimmed);
+    } catch (err: any) {
+      console.warn(`[gemini:${modelName}] error:`, err?.message || err);
       return null;
     }
   };
 
-  // First attempt with full history
-  const first = await tryReply(safeHistory);
-  if (first !== null) return first;
+  // 1. Try Gemini 3.1 Pro
+  const res = await tryWithModel(primaryModelName);
+  if (res !== null) return res;
 
-  // RECITATION — retry with last 2 exchanges only (shorter context reduces exact-match risk)
-  console.warn('[gemini] retrying with trimmed history after block');
-  const trimmed = safeHistory.slice(-4); // last 2 user+model pairs
-  while (trimmed.length > 0 && trimmed[0].role !== 'user') trimmed.shift();
-  const second = await tryReply(trimmed);
-  if (second !== null) return second;
+  // 2. Fallback to Gemini 2.5 Pro if primary had an issue
+  if (primaryModelName !== 'gemini-2.5-pro') {
+    console.warn('[gemini] trying fallback model: gemini-2.5-pro');
+    const fallbackRes = await tryWithModel('gemini-2.5-pro');
+    if (fallbackRes !== null) return fallbackRes;
+  }
 
-  // Both attempts blocked — return a safe fallback
-  console.error('[gemini] both attempts blocked, returning fallback');
+  // 3. Fallback message
+  console.error('[gemini] all model attempts failed or blocked');
   return `I'm sorry, I wasn't able to process that right now. Please rephrase your question, or reach our team directly at *+92 329 2020497*.`;
 }
 
@@ -73,7 +88,7 @@ export async function verifyPaymentReceiptWithAI(
 ): Promise<PaymentVerificationResult> {
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: process.env.GEMINI_MODEL || 'gemini-3.1-pro',
     });
 
     const prompt = `You are a financial verification AI for DataCrumbs (an educational institute in Pakistan).
