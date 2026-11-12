@@ -14,7 +14,7 @@ export async function getAIReply(
   systemPromptOverride?: string | null
 ): Promise<string> {
   const systemInstruction = systemPromptOverride ?? CORE_SYSTEM_PROMPT;
-  const primaryModelName = process.env.GEMINI_MODEL || 'gemini-3.1-pro';
+  const primaryModelName = process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview';
 
   const safeHistory = [...history];
   while (safeHistory.length > 0 && safeHistory[0].role !== 'user') {
@@ -88,7 +88,7 @@ export async function verifyPaymentReceiptWithAI(
 ): Promise<PaymentVerificationResult> {
   try {
     const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || 'gemini-3.1-pro',
+      model: process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview',
     });
 
     const prompt = `You are a financial verification AI for DataCrumbs (an educational institute in Pakistan).
