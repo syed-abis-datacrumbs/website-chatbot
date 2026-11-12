@@ -33,6 +33,18 @@ export async function GET() {
     // 1. Populate from MongoDB enrollments
     for (const session of mongoEnrollments) {
       if (!session.phone) continue;
+
+      // Only show students who actually paid or submitted payment proof:
+      // i.e. approved, rejected, screenshot uploaded, or has drive proof attached
+      const hasProof = Boolean(session.driveFileUrl || session.driveFileId);
+      const isPaidOrSubmitted =
+        session.state === 'approved' ||
+        session.state === 'rejected' ||
+        session.state === 'screenshot_received' ||
+        hasProof;
+
+      if (!isPaidOrSubmitted) continue;
+
       const clean = session.phone.replace(/\D/g, '');
       const ts = session.createdAt || session.updatedAt || Date.now();
       const submitted = new Date(ts).toLocaleString('en-PK', {
@@ -42,7 +54,7 @@ export async function GET() {
       });
 
       let norm: 'approved' | 'rejected' | 'pending' = 'pending';
-      let displayStatus = 'Pending Verification';
+      let displayStatus = 'Pending Review ⚠️';
       if (session.state === 'approved') {
         norm = 'approved';
         displayStatus = 'Approved ✅';
