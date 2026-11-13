@@ -30,6 +30,7 @@ const NAV: { href: string; label: string; countKey?: CountKey; icon: React.React
       </svg>
     ),
   },
+  /*
   {
     href: '/leads',
     label: 'Leads',
@@ -40,6 +41,7 @@ const NAV: { href: string; label: string; countKey?: CountKey; icon: React.React
       </svg>
     ),
   },
+  */
   {
     href: '/payments',
     label: 'Payments',
@@ -60,6 +62,7 @@ const NAV: { href: string; label: string; countKey?: CountKey; icon: React.React
       </svg>
     ),
   },
+  /*
   {
     href: '/discounts',
     label: 'Discounts',
@@ -78,6 +81,7 @@ const NAV: { href: string; label: string; countKey?: CountKey; icon: React.React
       </svg>
     ),
   },
+  */
   {
     href: '/config',
     label: 'Configuration',
