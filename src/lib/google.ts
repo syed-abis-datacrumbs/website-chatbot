@@ -89,6 +89,19 @@ export async function uploadScreenshotToDrive(
   return { fileId: file.data.id!, webViewLink: file.data.webViewLink! };
 }
 
+export async function getDriveFileBuffer(fileId: string): Promise<{ buffer: Buffer; mimeType: string }> {
+  const drive = google.drive({ version: 'v3', auth: auth() });
+  const meta = await drive.files.get({ fileId, fields: 'mimeType' });
+  const res = await drive.files.get(
+    { fileId, alt: 'media' },
+    { responseType: 'arraybuffer' },
+  );
+  return {
+    buffer: Buffer.from(res.data as ArrayBuffer),
+    mimeType: meta.data.mimeType || 'image/jpeg',
+  };
+}
+
 // ── Sheets ─────────────────────────────────────────────────────────────────
 
 export async function ensureSheetHeaders(): Promise<void> {

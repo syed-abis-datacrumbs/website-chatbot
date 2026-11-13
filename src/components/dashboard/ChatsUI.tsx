@@ -119,6 +119,9 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
   const [timeFrom,    setTimeFrom]    = useState('');
   const [timeTo,      setTimeTo]      = useState('');
   const [showEmoji,   setShowEmoji]   = useState(false);
+  const [previewImageId, setPreviewImageId] = useState<string | null>(null);
+  const [imgLoading,  setImgLoading]  = useState(true);
+  const [imgError,    setImgError]    = useState(false);
   const { isDark, toggleTheme }       = useTheme();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
@@ -174,6 +177,21 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
+
+  // Close image preview popup on Escape & reset loading state
+  useEffect(() => {
+    if (previewImageId) {
+      setImgLoading(true);
+      setImgError(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setPreviewImageId(null);
+    }
+    if (previewImageId) {
+      window.addEventListener('keydown', onKeyDown);
+      return () => window.removeEventListener('keydown', onKeyDown);
+    }
+  }, [previewImageId]);
 
   // Poll for new messages every 5 seconds
   useEffect(() => {
@@ -670,16 +688,45 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                               fontWeight: 500, overflow: 'hidden',
                             }}>
                               {msg.mediaType === 'image' && msg.mediaUrl ? (
-                                <a
-                                  href={`https://drive.google.com/file/d/${msg.mediaUrl}/view`}
-                                  target="_blank" rel="noreferrer"
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewImageId(msg.mediaUrl!)}
+                                  title="Click to view full image"
+                                  style={{
+                                    display: 'block', background: 'transparent', border: 'none',
+                                    padding: 0, margin: 0, cursor: 'pointer', position: 'relative',
+                                    borderRadius: 11, overflow: 'hidden',
+                                  }}
                                 >
                                   <img
-                                    src={`https://drive.google.com/thumbnail?id=${msg.mediaUrl}&sz=w240`}
+                                    src={`/api/media/${msg.mediaUrl}`}
                                     alt="Payment screenshot"
+                                    onError={(e) => {
+                                      const el = e.currentTarget;
+                                      if (!el.dataset.fallback1) {
+                                        el.dataset.fallback1 = 'true';
+                                        el.src = `https://drive.google.com/thumbnail?id=${msg.mediaUrl}&sz=w320`;
+                                      } else if (!el.dataset.fallback2) {
+                                        el.dataset.fallback2 = 'true';
+                                        el.src = `https://lh3.googleusercontent.com/d/${msg.mediaUrl}`;
+                                      }
+                                    }}
                                     style={{ display: 'block', maxWidth: 240, maxHeight: 240, borderRadius: 11 }}
                                   />
-                                </a>
+                                  <div style={{
+                                    position: 'absolute', bottom: 6, right: 6,
+                                    background: 'rgba(0,0,0,0.65)', borderRadius: 5,
+                                    padding: '2px 6px', color: '#fff', fontSize: 10, fontWeight: 600,
+                                    display: 'flex', alignItems: 'center', gap: 3,
+                                    pointerEvents: 'none',
+                                  }}>
+                                    <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                                    </svg>
+                                    View
+                                  </div>
+                                </button>
                               ) : msg.mediaType === 'image' ? (
                                 <span style={{ fontSize: 20 }}>📷</span>
                               ) : msg.text === '[image]' ? (
@@ -973,6 +1020,197 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
           </div>
         )}
       </div>
+
+      {/* Custom Image Modal Popup */}
+      {previewImageId && (
+        <div
+          onClick={() => setPreviewImageId(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20, boxSizing: 'border-box',
+          }}
+        >
+          {/* Custom Dialog Card */}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 680, maxHeight: '92vh',
+              background: isDark ? '#111a15' : '#ffffff',
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e2e8f0'}`,
+              borderRadius: 16,
+              boxShadow: isDark ? '0 25px 60px rgba(0,0,0,0.85)' : '0 20px 45px rgba(0,0,0,0.18)',
+              display: 'flex', flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '14px 18px',
+              borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: isDark ? 'rgba(255,255,255,0.02)' : '#fafafa',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: isDark ? 'rgba(92,228,109,0.15)' : '#ecfdf5',
+                  border: `1px solid ${isDark ? 'rgba(92,228,109,0.3)' : '#a7f3d0'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 16,
+                }}>
+                  🧾
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: isDark ? '#fff' : '#0f172a' }}>
+                    Payment Screenshot
+                  </div>
+                  <div style={{ fontSize: 11, color: isDark ? '#9ca3af' : '#64748b', marginTop: 1 }}>
+                    {active ? (active.name ? `${active.name} (+${active.phone})` : `+${active.phone}`) : 'Student Receipt'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <a
+                  href={`https://drive.google.com/file/d/${previewImageId}/view`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Open original file on Google Drive"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '6px 12px', borderRadius: 8,
+                    background: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1'}`,
+                    color: isDark ? '#e5e7eb' : '#334155',
+                    fontSize: 12, fontWeight: 600,
+                    textDecoration: 'none', transition: 'all 0.15s',
+                  }}
+                >
+                  <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Drive ↗
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImageId(null)}
+                  title="Close (Esc)"
+                  style={{
+                    width: 32, height: 32, borderRadius: 8,
+                    background: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1'}`,
+                    color: isDark ? '#e5e7eb' : '#475569',
+                    fontSize: 15, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div style={{
+              padding: 16,
+              background: isDark ? '#080d0a' : '#f8fafc',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              minHeight: 360, maxHeight: '68vh',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              {imgLoading && (
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  color: isDark ? '#9ca3af' : '#64748b', fontSize: 13,
+                }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%',
+                    border: '3px solid rgba(16,185,129,0.2)',
+                    borderTop: `3px solid ${isDark ? NEON : '#10b981'}`,
+                    animation: 'spin 0.7s linear infinite',
+                  }} />
+                  <span>Loading screenshot…</span>
+                </div>
+              )}
+
+              {imgError ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: isDark ? '#9ca3af' : '#64748b' }}>
+                  <div style={{ fontSize: 36, marginBottom: 8 }}>⚠️</div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: isDark ? '#fff' : '#0f172a', marginBottom: 6 }}>
+                    Direct preview not available
+                  </div>
+                  <div style={{ fontSize: 12, marginBottom: 16 }}>
+                    This screenshot can be viewed directly on Google Drive.
+                  </div>
+                  <a
+                    href={`https://drive.google.com/file/d/${previewImageId}/view`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '8px 16px', borderRadius: 8,
+                      background: isDark ? NEON : '#10b981',
+                      color: isDark ? '#000' : '#fff',
+                      fontWeight: 600, fontSize: 13, textDecoration: 'none',
+                    }}
+                  >
+                    Open in Google Drive ↗
+                  </a>
+                </div>
+              ) : (
+                <img
+                  src={`/api/media/${previewImageId}`}
+                  alt="Payment screenshot"
+                  onLoad={() => setImgLoading(false)}
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    if (!el.dataset.fallback1) {
+                      el.dataset.fallback1 = 'true';
+                      el.src = `https://lh3.googleusercontent.com/d/${previewImageId}`;
+                    } else if (!el.dataset.fallback2) {
+                      el.dataset.fallback2 = 'true';
+                      el.src = `https://drive.google.com/thumbnail?id=${previewImageId}&sz=w1000`;
+                    } else {
+                      setImgLoading(false);
+                      setImgError(true);
+                    }
+                  }}
+                  style={{
+                    maxWidth: '100%', maxHeight: '64vh',
+                    objectFit: 'contain', borderRadius: 8,
+                    display: imgLoading ? 'none' : 'block',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '10px 18px',
+              borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              fontSize: 11, color: isDark ? '#6b7280' : '#94a3b8',
+              background: isDark ? 'rgba(255,255,255,0.02)' : '#fafafa',
+            }}>
+              <span>Click outside or press <kbd style={{ padding: '2px 5px', borderRadius: 4, background: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0', fontSize: 10 }}>Esc</kbd> to close</span>
+              <a
+                href={`https://drive.google.com/file/d/${previewImageId}/view`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: isDark ? NEON : '#059669', textDecoration: 'none', fontWeight: 600 }}
+              >
+                View on Drive ↗
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
