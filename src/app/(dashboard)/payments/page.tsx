@@ -22,7 +22,7 @@ const NEON = '#5ce46d';
 const PRESET_REASONS = [
   'Screenshot is blurry or illegible',
   'Transaction ID / Ref number not visible',
-  'Fee amount does not match Rs 7,499 / 7,500',
+  'Fee amount does not match Rs 7,500',
   'Account title does not match Data Crumbs / HabibMetro / JazzCash',
   'Duplicate or already submitted receipt',
 ];
@@ -62,7 +62,7 @@ export default function PaymentsPage() {
 
 Our admissions team reviewed your payment screenshot, but we could not verify your transaction.${reasonBlock}
 
-Please send a clear screenshot showing the transaction ID, date, and fee amount (Rs 7,499 / 7,500) so we can verify and confirm your seat.
+Please send a clear screenshot showing the transaction ID, date, and fee amount (Rs 7,500) so we can verify and confirm your seat.
 
 If you have already paid or need assistance, reply here or contact us at +92 329 2020497.`;
   }

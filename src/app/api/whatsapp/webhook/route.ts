@@ -567,15 +567,34 @@ async function runEnrollmentMachine(
         }
 
         const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+        const bankName = process.env.PAYMENT_BANK_NAME || 'HabibMetro Bank';
+        const bankTitle = process.env.PAYMENT_BANK_TITLE || 'Data Crumbs';
+        const accountNum = process.env.PAYMENT_BANK_ACCOUNT || '6016520311714280184';
+        const walletNum = process.env.PAYMENT_WALLET_NUMBER || '0336-2507273';
+        const walletTitle = process.env.PAYMENT_WALLET_TITLE || 'Abis Hussain Syed';
 
         if (!verification.isPaymentReceipt) {
           // Student sent a non-payment image (e.g. syllabus, website screenshot, question)
           const aiReply = await getAIReplyWithImage(text, buffer, mimeType, history, enrollmentSystemPrompt);
-          reply = `${aiReply}\n\n*(Note: To confirm your seat in the bootcamp, please share your fee transfer receipt of Rs 7,499 / 7,500 to HabibMetro: Data Crumbs or 0336-2507273: Abis Hussain Syed)* 😊`;
+          reply = `${aiReply}\n\n👉 *To confirm your seat in the bootcamp, please share your fee transfer receipt (Rs 7,500):*\n🏦 *${bankName}:* ${accountNum} (Title: ${bankTitle})\n📱 *Easypaisa / JazzCash / Raast:* ${walletNum} (Title: ${walletTitle}) 😊`;
           break;
         }
 
-        // It is an actual payment receipt!
+        if (!verification.isValid) {
+          // Receipt was sent, but payment details (name or amount) do not match
+          const mismatchReason = verification.reason ? `\n\n👉 *Issue detected:* ${verification.reason}` : '';
+          reply = `⚠️ We reviewed your receipt screenshot, but the payment details could not be verified.${mismatchReason}
+
+Please ensure the payment was sent to our official details:
+• Fee: *Rs 7,500*
+• 🏦 *${bankName}:* ${accountNum} (Title: ${bankTitle})
+• 📱 *Easypaisa / JazzCash / Raast:* ${walletNum} (Title: ${walletTitle})
+
+If you have already transferred to DataCrumbs, reply here or contact us at +92 329 2020497 and our admissions team will verify it manually!`;
+          break;
+        }
+
+        // It is an actual, verified payment receipt (both Name and Amount match)!
         let fileId = '';
         let webViewLink = '';
         let rowIndex = -1;
@@ -613,7 +632,7 @@ async function runEnrollmentMachine(
         const nameGreeting = validName ? `, *${validName}*` : '';
         const lmsEmailText = session.email ? ` using your registered email (*${session.email}*)` : '';
 
-        reply = `✅ We've received your payment screenshot! Our admissions team is reviewing the payment details.
+        reply = `✅ We've received your payment screenshot for Rs 7,500! Our admissions team is reviewing the payment details.
 
 Once verified by our team, we will confirm your enrollment and send your orientation details right here.
 
@@ -659,6 +678,11 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
         if (!verification.isPaymentReceipt) {
           // User sent a non-payment image while waiting for verification (like the syllabus screenshot)
           reply = await getAIReplyWithImage(text, buffer, mimeType, history, enrollmentSystemPrompt);
+          break;
+        }
+
+        if (!verification.isValid) {
+          reply = `⚠️ We reviewed your receipt update, but the details could not be matched: ${verification.reason}. Please make sure the fee of Rs 7,500 is transferred to Data Crumbs (HabibMetro) or Abis Hussain Syed (0336-2507273).`;
           break;
         }
 
@@ -709,6 +733,11 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
         if (!verification.isPaymentReceipt) {
           // Student is approved or rejected and sent a screenshot (e.g. LMS issue, question, syllabus)
           reply = await getAIReplyWithImage(text, buffer, mimeType, history, session.state === 'approved' ? CORE_SYSTEM_PROMPT : (enrollmentSystemPrompt || CORE_SYSTEM_PROMPT));
+          break;
+        }
+
+        if (!verification.isValid) {
+          reply = `⚠️ We reviewed your receipt, but the details could not be matched: ${verification.reason}. Expected fee is Rs 7,500 sent to Data Crumbs (HabibMetro) or Abis Hussain Syed (0336-2507273).`;
           break;
         }
 
@@ -1252,6 +1281,28 @@ export async function POST(req: NextRequest) {
             return;
           }
 
+          if (!verification.isValid) {
+            // Receipt sent, but payment details (name or amount) do not match!
+            const bankName = process.env.PAYMENT_BANK_NAME || 'HabibMetro Bank';
+            const bankTitle = process.env.PAYMENT_BANK_TITLE || 'Data Crumbs';
+            const accountNum = process.env.PAYMENT_BANK_ACCOUNT || '6016520311714280184';
+            const walletNum = process.env.PAYMENT_WALLET_NUMBER || '0336-2507273';
+            const walletTitle = process.env.PAYMENT_WALLET_TITLE || 'Abis Hussain Syed';
+            const mismatchReason = verification.reason ? `\n\n👉 *Issue detected:* ${verification.reason}` : '';
+
+            const reply = `⚠️ We reviewed your receipt screenshot, but the payment details could not be verified.${mismatchReason}
+
+Please ensure the payment was sent to our official details:
+• Fee: *Rs 7,500*
+• 🏦 *${bankName}:* ${accountNum} (Title: ${bankTitle})
+• 📱 *Easypaisa / JazzCash / Raast:* ${walletNum} (Title: ${walletTitle})
+
+If you have already transferred to DataCrumbs, reply here or contact us at +92 329 2020497 so our admissions team can assist!`;
+            await sendWhatsAppMessage(from, reply);
+            await saveMessage({ from, text: '[image]', reply, timestamp: Date.now(), mediaType: 'image' });
+            return;
+          }
+
           // It IS an actual payment receipt!
           let mediaUrl: string | undefined;
           let webViewLink = '';
@@ -1293,7 +1344,7 @@ export async function POST(req: NextRequest) {
           const nameGreeting = validName ? `, *${validName}*` : '';
           const lmsEmailText = studentEmail ? ` using your registered email (*${studentEmail}*)` : '';
 
-          const reply = `✅ We've received your payment screenshot! Our admissions team is reviewing the payment details.
+          const reply = `✅ We've received your payment screenshot for Rs 7,500! Our admissions team is reviewing the payment details.
 
 Once verified by our team, we will confirm your enrollment and send your orientation details right here.
 

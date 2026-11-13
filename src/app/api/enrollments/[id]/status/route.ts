@@ -104,7 +104,7 @@ Welcome to DataCrumbs! Our team will share your orientation schedule right here 
 
 Our admissions team reviewed your payment screenshot, but we could not verify your transaction.${reasonBlock}
 
-Please send a clear screenshot showing the transaction ID, date, and fee amount (Rs 7,499 / 7,500) so we can verify and confirm your seat.
+Please send a clear screenshot showing the transaction ID, date, and fee amount (Rs 7,500) so we can verify and confirm your seat.
 
 If you have already paid or need assistance, reply here or contact us at +92 329 2020497.`;
 

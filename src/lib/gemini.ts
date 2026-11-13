@@ -103,13 +103,20 @@ STEP 1: Identify Image Type:
 Set "isPaymentReceipt" to true ONLY if it is an actual financial payment/transfer receipt. If it is a website screenshot, syllabus, course outline, or anything else, set "isPaymentReceipt" to false.
 
 STEP 2: If isPaymentReceipt is true, check against Official DataCrumbs Payment Criteria:
-1. Destination / Beneficiary:
+1. Destination / Beneficiary Name:
    - Bank Destination: "${bankName}" with Account Title "${bankTitle}" (or variations like "DataCrumbs")
    - OR Wallet / Mobile Account: "${walletNumber}" with Account Title "${walletTitle}" (or "Syed Abis Hussain" / "Abis Hussain")
 2. Expected Fee Amount:
    - Exactly 7,499 PKR or 7,500 PKR (Both 7,499 and 7,500 are standard fee amounts and completely valid).
 3. Status:
    - Must be a completed / successful transaction with a visible reference/transaction ID (not pending, scheduled, or failed).
+
+CRITICAL RULE FOR "isValid":
+Set "isValid" to true ONLY IF all 3 conditions are met:
+(1) It is an actual payment receipt,
+(2) Beneficiary name matches "${bankTitle}" or "${walletTitle}", and
+(3) Fee amount matches 7,499 or 7,500 PKR.
+If the name or amount does NOT match, set "isValid" to false and state the exact mismatch in "reason" (e.g. "Amount is 1,000 instead of 7,500" or "Account title does not match Data Crumbs / Abis Hussain Syed").
 
 Return ONLY a valid JSON object with the following fields (no markdown formatting, no backticks, just raw JSON):
 {
