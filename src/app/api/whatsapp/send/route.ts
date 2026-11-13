@@ -27,18 +27,21 @@ Quick question to ensure this batch is the right fit: What is your educational b
     console.log(`[whatsapp/send] Received bootcamp lead: ${studentName} (${to}) - Email: ${studentEmail || 'none'} - Goal: ${studentGoal}`);
 
     const templateName = process.env.WHATSAPP_BOOTCAMP_TEMPLATE || 'bootcamp_lead_welcome';
+    let dispatchedWamId: string | undefined;
     try {
       // First try approved WhatsApp Template (required by Meta for cold/new form leads outside 24h window)
       try {
-        await sendWhatsAppTemplate(to, templateName, [studentName], 'en');
-        console.log(`[whatsapp/send] Template '${templateName}' (en) dispatched successfully to ${to}`);
+        const res = await sendWhatsAppTemplate(to, templateName, [studentName], 'en');
+        dispatchedWamId = res.wamId;
+        console.log(`[whatsapp/send] Template '${templateName}' (en) dispatched successfully to ${to} (wamId: ${dispatchedWamId})`);
       } catch (tmplErr: unknown) {
         const axErr = tmplErr as { response?: { data?: { error?: { code?: number; error_subcode?: number } } } };
         // If 'en' fails due to language mismatch, try 'en_US'
         if (axErr?.response?.data?.error?.code === 132001 || axErr?.response?.data?.error?.error_subcode === 2388043) {
           console.warn(`[whatsapp/send] Template not found with code 'en', trying 'en_US'...`);
-          await sendWhatsAppTemplate(to, templateName, [studentName], 'en_US');
-          console.log(`[whatsapp/send] Template '${templateName}' (en_US) dispatched successfully to ${to}`);
+          const res = await sendWhatsAppTemplate(to, templateName, [studentName], 'en_US');
+          dispatchedWamId = res.wamId;
+          console.log(`[whatsapp/send] Template '${templateName}' (en_US) dispatched successfully to ${to} (wamId: ${dispatchedWamId})`);
         } else {
           throw tmplErr;
         }
@@ -46,8 +49,9 @@ Quick question to ensure this batch is the right fit: What is your educational b
     } catch (err: unknown) {
       console.warn('[whatsapp/send] Template dispatch failed, falling back to direct text message:', (err as { response?: { data?: unknown } })?.response?.data ?? (err as Error)?.message);
       try {
-        await sendWhatsAppMessage(to, msg1);
-        console.log(`[whatsapp/send] Fallback text message dispatched successfully to ${to}`);
+        const res = await sendWhatsAppMessage(to, msg1);
+        dispatchedWamId = res.wamId;
+        console.log(`[whatsapp/send] Fallback text message dispatched successfully to ${to} (wamId: ${dispatchedWamId})`);
       } catch (fallbackErr: unknown) {
         const axErr = fallbackErr as { response?: { status?: number; data?: unknown }; message?: string };
         console.error('[whatsapp/send] Meta API error sending Message 1:', JSON.stringify(axErr?.response?.data ?? axErr?.message ?? fallbackErr, null, 2));
@@ -64,6 +68,8 @@ Quick question to ensure this batch is the right fit: What is your educational b
       text: '',
       reply: msg1,
       timestamp: Date.now(),
+      wamId: dispatchedWamId,
+      deliveryStatus: 'sent',
     });
 
     // Save contact state in MongoDB
@@ -84,6 +90,7 @@ Quick question to ensure this batch is the right fit: What is your educational b
   }
 
   let sentDoc = false;
+  let adminWamId: string | undefined;
   if (sendBrochure) {
     try {
       await sendWhatsAppDocument(to);
@@ -93,11 +100,17 @@ Quick question to ensure this batch is the right fit: What is your educational b
     }
   }
   if (message) {
-    await sendWhatsAppMessage(to, message);
+    const res = await sendWhatsAppMessage(to, message);
+    adminWamId = res?.wamId;
   }
   // Save with empty text to indicate admin-initiated (no customer message)
   await saveMessage({
-    from: to, text: '', reply: message || '', timestamp: Date.now(),
+    from: to,
+    text: '',
+    reply: message || '',
+    timestamp: Date.now(),
+    wamId: adminWamId,
+    deliveryStatus: 'sent',
     ...(sentDoc ? { mediaType: 'document' as const } : {}),
   });
 

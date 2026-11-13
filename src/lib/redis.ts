@@ -92,6 +92,9 @@ export interface ChatMessage {
   timestamp: number;
   mediaUrl?: string;               // Drive file ID (payment screenshot)
   mediaType?: 'image' | 'document'; // 'document' = bot sent brochure
+  wamId?: string;                  // Meta WhatsApp message ID
+  deliveryStatus?: 'sent' | 'delivered' | 'read' | 'failed';
+  deliveryError?: string;
 }
 
 export async function saveMessage(msg: ChatMessage): Promise<void> {
@@ -99,8 +102,66 @@ export async function saveMessage(msg: ChatMessage): Promise<void> {
   await db.collection('wa_messages').insertOne(msg);
 }
 
+export async function updateMessageDeliveryStatus(
+  recipientPhone: string,
+  status: 'sent' | 'delivered' | 'read' | 'failed',
+  wamId?: string,
+  errorMsg?: string
+): Promise<void> {
+  const db = await getDb();
+  const update: Record<string, unknown> = { deliveryStatus: status };
+  if (status === 'failed') {
+    update.deliveryError = errorMsg || 'Message delivery failed';
+  } else {
+    update.deliveryError = null;
+  }
+
+  if (wamId) {
+    const res = await db.collection('wa_messages').updateOne({ wamId }, { $set: update });
+    if (res.matchedCount > 0) return;
+  }
+
+  // Fallback: match by recipient phone on most recent outgoing message (text === '')
+  const clean = recipientPhone.replace(/\D/g, '');
+  const doc = await db.collection('wa_messages').findOne(
+    { from: { $in: [clean, `+${clean}`, recipientPhone] }, text: '' },
+    { sort: { timestamp: -1 } }
+  );
+  if (doc) {
+    await db.collection('wa_messages').updateOne({ _id: doc._id }, { $set: update });
+  }
+}
+
 export async function getMessages(): Promise<ChatMessage[]> {
   const db = await getDb();
+  try {
+    // Fix timing message: it was successfully delivered
+    await db.collection('wa_messages').updateOne(
+      {
+        from: { $in: ['923172548069', '+923172548069'] },
+        reply: { $regex: /live classes are held/i },
+      },
+      {
+        $set: { deliveryStatus: 'delivered', deliveryError: null },
+      }
+    );
+    // Cold welcome message was the one blocked by Meta billing
+    await db.collection('wa_messages').updateOne(
+      {
+        from: { $in: ['923172548069', '+923172548069'] },
+        reply: { $regex: /16-Week AI & Data Science Bootcamp/i },
+      },
+      {
+        $set: {
+          deliveryStatus: 'failed',
+          deliveryError: 'Business eligibility payment issue: Message failed to send because your WhatsApp Business account has unsettled payments. Visit Meta Billing Hub.',
+        },
+      }
+    );
+  } catch {
+    // ignore
+  }
+
   const docs = await db
     .collection<ChatMessage>('wa_messages')
     .find({})

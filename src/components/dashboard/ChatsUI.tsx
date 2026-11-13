@@ -201,9 +201,9 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
         const data = await res.json() as { messages: ChatMessage[]; names?: Record<string, string> };
         setContacts(prev => {
           const updated = groupByPhone(data.messages, data.names, prev);
-          const prevTotal = prev.reduce((s, c) => s + c.messages.length, 0);
-          const newTotal  = updated.reduce((s, c) => s + c.messages.length, 0);
-          return newTotal !== prevTotal ? updated : prev;
+          const prevSig = prev.map(c => `${c.phone}:${c.messages.length}:${c.lastMessage?.deliveryStatus || ''}:${c.lastMessage?.timestamp || 0}`).join('|');
+          const newSig  = updated.map(c => `${c.phone}:${c.messages.length}:${c.lastMessage?.deliveryStatus || ''}:${c.lastMessage?.timestamp || 0}`).join('|');
+          return prevSig !== newSig ? updated : prev;
         });
       } catch { /* ignore network errors */ }
     }, 5000);
@@ -781,21 +781,54 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                               </div>
                             )}
                             <div style={{
-                              background: msg.text === ''
+                              background: msg.deliveryStatus === 'failed'
+                                ? (isDark ? 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(20,29,25,0.95))' : '#fef2f2')
+                                : msg.text === ''
                                 ? (isDark ? 'linear-gradient(135deg, #1a3020, #0e1f14)' : '#ecfdf5')
                                 : (isDark ? 'linear-gradient(180deg, rgba(20,29,25,0.9) 0%, rgba(13,20,17,1) 100%)' : '#ffffff'),
-                              border: msg.text === ''
+                              border: msg.deliveryStatus === 'failed'
+                                ? '1px solid rgba(239,68,68,0.5)'
+                                : msg.text === ''
                                 ? `1px solid ${isDark ? NEON : '#10b981'}`
                                 : `1px solid ${isDark ? BORDER : '#e2e8f0'}`,
-                              color: msg.text === '' ? (isDark ? '#e5e7eb' : '#064e3b') : (isDark ? '#e5e7eb' : '#1e293b'),
+                              color: msg.deliveryStatus === 'failed'
+                                ? (isDark ? '#fca5a5' : '#991b1b')
+                                : msg.text === ''
+                                ? (isDark ? '#e5e7eb' : '#064e3b')
+                                : (isDark ? '#e5e7eb' : '#1e293b'),
                               padding: '8px 12px 5px', fontSize: 13, lineHeight: 1.55,
                               borderRadius: '16px 16px 16px 4px',
-                              boxShadow: msg.text === ''
+                              boxShadow: msg.deliveryStatus === 'failed'
+                                ? '0 0 10px rgba(239,68,68,0.2)'
+                                : msg.text === ''
                                 ? (isDark ? `0 0 10px rgba(92,228,109,0.15)` : '0 1px 3px rgba(16,185,129,0.1)')
                                 : (isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.06)'),
                               whiteSpace: 'pre-wrap',
                             }}>
                               <div>{msg.reply}</div>
+                              {msg.deliveryStatus === 'failed' && (
+                                <div style={{
+                                  marginTop: 8,
+                                  padding: '7px 10px',
+                                  borderRadius: 8,
+                                  background: isDark ? 'rgba(239,68,68,0.2)' : '#fee2e2',
+                                  border: '1px solid rgba(239,68,68,0.4)',
+                                  color: isDark ? '#fca5a5' : '#991b1b',
+                                  fontSize: 11,
+                                  lineHeight: '1.4',
+                                  display: 'flex',
+                                  alignItems: 'flex-start',
+                                  gap: 6,
+                                }}>
+                                  <span style={{ fontSize: 13, flexShrink: 0, marginTop: -1 }}>⚠️</span>
+                                  <div>
+                                    <div style={{ fontWeight: 700 }}>Meta Delivery Failed</div>
+                                    <div style={{ fontSize: 10.5, marginTop: 1, opacity: 0.9 }}>
+                                      {msg.deliveryError || 'Message failed to deliver. Check Meta WhatsApp Billing.'}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                               <div style={{
                                 fontSize: 9.5,
                                 color: isDark ? '#6b7280' : '#94a3b8',
@@ -804,11 +837,33 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                                 display: 'flex',
                                 justifyContent: 'flex-end',
                                 alignItems: 'center',
-                                gap: 3,
+                                gap: 4,
                               }}>
                                 <span>{formatMessageTime(msg.timestamp)}</span>
                                 {msg.text === '' && (
-                                  <span style={{ fontSize: 10, color: isDark ? NEON : '#10b981', fontWeight: 700 }}>✓✓</span>
+                                  msg.deliveryStatus === 'failed' ? (
+                                    <span
+                                      title={msg.deliveryError ? `Delivery Failed: ${msg.deliveryError}` : 'Meta Delivery Failed'}
+                                      style={{
+                                        fontSize: 9.5,
+                                        color: '#ef4444',
+                                        fontWeight: 700,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 2,
+                                        background: isDark ? 'rgba(239,68,68,0.2)' : '#fee2e2',
+                                        padding: '1px 5px',
+                                        borderRadius: 4,
+                                        border: '1px solid rgba(239,68,68,0.3)',
+                                      }}
+                                    >
+                                      ✕ Failed
+                                    </span>
+                                  ) : msg.deliveryStatus === 'delivered' || msg.deliveryStatus === 'read' ? (
+                                    <span style={{ fontSize: 10, color: isDark ? NEON : '#10b981', fontWeight: 700 }} title="Delivered">✓✓</span>
+                                  ) : (
+                                    <span style={{ fontSize: 10, color: isDark ? '#9ca3af' : '#64748b', fontWeight: 600 }} title="Sent">✓</span>
+                                  )
                                 )}
                               </div>
                             </div>

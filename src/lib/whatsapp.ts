@@ -66,12 +66,13 @@ function headers() {
   };
 }
 
-export async function sendWhatsAppMessage(to: string, text: string) {
-  await axios.post(
+export async function sendWhatsAppMessage(to: string, text: string): Promise<{ wamId?: string }> {
+  const res = await axios.post(
     apiUrl('/messages'),
     { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } },
     { headers: headers() }
   );
+  return { wamId: (res.data as { messages?: Array<{ id: string }> })?.messages?.[0]?.id };
 }
 
 export async function sendWhatsAppTemplate(
@@ -79,7 +80,7 @@ export async function sendWhatsAppTemplate(
   templateName: string,
   parameters: string[] = [],
   languageCode: string = 'en'
-) {
+): Promise<{ wamId?: string }> {
   const payload: Record<string, unknown> = {
     messaging_product: 'whatsapp',
     to,
@@ -99,7 +100,8 @@ export async function sendWhatsAppTemplate(
     ];
   }
 
-  await axios.post(apiUrl('/messages'), payload, { headers: headers() });
+  const res = await axios.post(apiUrl('/messages'), payload, { headers: headers() });
+  return { wamId: (res.data as { messages?: Array<{ id: string }> })?.messages?.[0]?.id };
 }
 
 export async function downloadWhatsAppMedia(

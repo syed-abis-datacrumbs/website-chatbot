@@ -13,6 +13,7 @@ import {
   getContactProfile, saveContactProfile,
   saveDiscountRequest, updateDiscountRequestComment,
   saveDemoRequest, createHumanIntervention,
+  updateMessageDeliveryStatus,
   type EnrollmentSession,
 } from '@/lib/redis';
 import {
@@ -877,14 +878,21 @@ export async function POST(req: NextRequest) {
     try {
       const value = body?.entry?.[0]?.changes?.[0]?.value;
 
-      // Log delivery statuses (sent, delivered, read, failed) from Meta
+      // Log and record delivery statuses (sent, delivered, read, failed) from Meta
       const statuses = value?.statuses;
       if (Array.isArray(statuses) && statuses.length > 0) {
         for (const s of statuses) {
-          if (s.status === 'failed') {
-            console.error(`[webhook/status] ❌ WhatsApp delivery FAILED for ${s.recipient_id}:`, JSON.stringify(s.errors ?? s));
-          } else {
-            console.log(`[webhook/status] ℹ️ Message status for ${s.recipient_id}: ${s.status}`);
+          const wamId = s.id as string | undefined;
+          const status = s.status as 'sent' | 'delivered' | 'read' | 'failed';
+          const recipientId = s.recipient_id as string;
+          const errorMsg = s.errors?.[0]?.error_data?.details || s.errors?.[0]?.message || s.errors?.[0]?.title;
+
+          if (status === 'failed') {
+            console.error(`[webhook/status] ❌ WhatsApp delivery FAILED for ${recipientId}:`, JSON.stringify(s.errors ?? s));
+            await updateMessageDeliveryStatus(recipientId, 'failed', wamId, errorMsg || 'Message delivery failed (Meta error)');
+          } else if (status === 'delivered' || status === 'read') {
+            console.log(`[webhook/status] ℹ️ Message status for ${recipientId}: ${status}`);
+            await updateMessageDeliveryStatus(recipientId, status, wamId);
           }
         }
       }
