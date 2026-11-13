@@ -48,7 +48,7 @@ Account Number: ${process.env.PAYMENT_BANK_ACCOUNT}
 Account Title: ${process.env.PAYMENT_WALLET_TITLE}
 Account Number: ${process.env.PAYMENT_WALLET_NUMBER}
 
-Fee: *${process.env.PAYMENT_FEE ?? 'Rs. 7,499/month'}*
+Fee: *${process.env.PAYMENT_FEE ?? 'Rs. 7,500/month'}*
 
 Once you've paid, please send a *screenshot* here and we'll verify it and get you enrolled! ✅`;
 }
@@ -569,14 +569,14 @@ async function runEnrollmentMachine(
         const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
         const bankName = process.env.PAYMENT_BANK_NAME || 'HabibMetro Bank';
         const bankTitle = process.env.PAYMENT_BANK_TITLE || 'Data Crumbs';
-        const accountNum = process.env.PAYMENT_BANK_ACCOUNT || '6016520311714280184';
+        const iban = process.env.PAYMENT_BANK_IBAN || 'PK61 MPBL 0165 0271 4028 0184';
         const walletNum = process.env.PAYMENT_WALLET_NUMBER || '0336-2507273';
         const walletTitle = process.env.PAYMENT_WALLET_TITLE || 'Abis Hussain Syed';
 
         if (!verification.isPaymentReceipt) {
           // Student sent a non-payment image (e.g. syllabus, website screenshot, question)
           const aiReply = await getAIReplyWithImage(text, buffer, mimeType, history, enrollmentSystemPrompt);
-          reply = `${aiReply}\n\n👉 *To confirm your seat in the bootcamp, please share your fee transfer receipt (Rs 7,500):*\n🏦 *${bankName}:* ${accountNum} (Title: ${bankTitle})\n📱 *Easypaisa / JazzCash / Raast:* ${walletNum} (Title: ${walletTitle}) 😊`;
+          reply = `${aiReply}\n\n👉 *To confirm your seat in the bootcamp, please share your fee transfer receipt (Rs 7,500):*\n🏦 *${bankName} (IBAN):* ${iban} (Title: ${bankTitle})\n📱 *Easypaisa / JazzCash / Raast:* ${walletNum} (Title: ${walletTitle}) 😊`;
           break;
         }
 
@@ -587,7 +587,7 @@ async function runEnrollmentMachine(
 
 Please ensure the payment was sent to our official details:
 • Fee: *Rs 7,500*
-• 🏦 *${bankName}:* ${accountNum} (Title: ${bankTitle})
+• 🏦 *${bankName} (IBAN):* ${iban} (Title: ${bankTitle})
 • 📱 *Easypaisa / JazzCash / Raast:* ${walletNum} (Title: ${walletTitle})
 
 If you have already transferred to DataCrumbs, reply here or contact us at +92 329 2020497 and our admissions team will verify it manually!`;
@@ -1285,7 +1285,7 @@ export async function POST(req: NextRequest) {
             // Receipt sent, but payment details (name or amount) do not match!
             const bankName = process.env.PAYMENT_BANK_NAME || 'HabibMetro Bank';
             const bankTitle = process.env.PAYMENT_BANK_TITLE || 'Data Crumbs';
-            const accountNum = process.env.PAYMENT_BANK_ACCOUNT || '6016520311714280184';
+            const iban = process.env.PAYMENT_BANK_IBAN || 'PK61 MPBL 0165 0271 4028 0184';
             const walletNum = process.env.PAYMENT_WALLET_NUMBER || '0336-2507273';
             const walletTitle = process.env.PAYMENT_WALLET_TITLE || 'Abis Hussain Syed';
             const mismatchReason = verification.reason ? `\n\n👉 *Issue detected:* ${verification.reason}` : '';
@@ -1294,7 +1294,7 @@ export async function POST(req: NextRequest) {
 
 Please ensure the payment was sent to our official details:
 • Fee: *Rs 7,500*
-• 🏦 *${bankName}:* ${accountNum} (Title: ${bankTitle})
+• 🏦 *${bankName} (IBAN):* ${iban} (Title: ${bankTitle})
 • 📱 *Easypaisa / JazzCash / Raast:* ${walletNum} (Title: ${walletTitle})
 
 If you have already transferred to DataCrumbs, reply here or contact us at +92 329 2020497 so our admissions team can assist!`;
