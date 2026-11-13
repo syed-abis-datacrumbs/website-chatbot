@@ -21,8 +21,9 @@ const QUICK_ACTIONS: { label: string; message?: string; sendBrochure?: boolean }
 
 const EMOJI_PICKS = ['😊','👍','🙏','🎉','❤️','🔥','✅','😀','🚀','👋','💡','📅','💰','📄','🤝','😅'];
 
-interface Contact {
+export interface Contact {
   phone: string;
+  name?: string | null;
   messages: ChatMessage[];
   lastMessage: ChatMessage;
 }
@@ -61,7 +62,14 @@ function formatDateSeparator(ts: number) {
   return d.toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function phoneInitials(phone: string) { return phone.slice(-2); }
+function contactInitials(name?: string | null, phone?: string) {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return phone ? phone.slice(-2) : '??';
+}
 
 function hueFromPhone(phone: string) {
   let h = 0;
@@ -69,7 +77,14 @@ function hueFromPhone(phone: string) {
   return [140, 160, 180, 200, 220, 260, 280][h % 7];
 }
 
-function groupByPhone(messages: ChatMessage[]): Contact[] {
+function groupByPhone(messages: ChatMessage[], namesMap?: Record<string, string>, prevContacts?: Contact[]): Contact[] {
+  const prevMap = new Map<string, string | null | undefined>();
+  if (prevContacts) {
+    for (const c of prevContacts) {
+      if (c.name) prevMap.set(c.phone, c.name);
+    }
+  }
+
   const map = new Map<string, ChatMessage[]>();
   for (const msg of messages) {
     if (!map.has(msg.from)) map.set(msg.from, []);
@@ -78,6 +93,7 @@ function groupByPhone(messages: ChatMessage[]): Contact[] {
   return Array.from(map.entries())
     .map(([phone, msgs]) => ({
       phone,
+      name: namesMap?.[phone] || prevMap.get(phone) || null,
       messages: msgs.sort((a, b) => b.timestamp - a.timestamp),
       lastMessage: msgs.reduce((l, m) => m.timestamp > l.timestamp ? m : l),
     }))
@@ -110,7 +126,13 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
   const dateFilterActive = Boolean(dateFrom || dateTo || timeFrom || timeTo);
 
   const filteredContacts = contacts.filter(c => {
-    if (search.trim() && !c.phone.includes(search.trim().replace(/\D/g, ''))) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const numOnly = q.replace(/\D/g, '');
+      const matchPhone = numOnly ? c.phone.includes(numOnly) : c.phone.includes(q);
+      const matchName  = c.name ? c.name.toLowerCase().includes(q) : false;
+      if (!matchPhone && !matchName) return false;
+    }
     if (dateFilterActive) {
       const d = new Date(c.lastMessage.timestamp);
       if (dateFrom && d < new Date(`${dateFrom}T00:00:00`)) return false;
@@ -156,9 +178,9 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
     const poll = setInterval(async () => {
       try {
         const res  = await fetch('/api/messages');
-        const data = await res.json() as { messages: ChatMessage[] };
+        const data = await res.json() as { messages: ChatMessage[]; names?: Record<string, string> };
         setContacts(prev => {
-          const updated = groupByPhone(data.messages);
+          const updated = groupByPhone(data.messages, data.names, prev);
           const prevTotal = prev.reduce((s, c) => s + c.messages.length, 0);
           const newTotal  = updated.reduce((s, c) => s + c.messages.length, 0);
           return newTotal !== prevTotal ? updated : prev;
@@ -279,7 +301,7 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search by phone number…"
+              placeholder="Search by name or phone…"
               style={{
                 flex: 1, minWidth: 0, boxSizing: 'border-box',
                 background: isDark ? '#0d1511' : '#f8fafc',
@@ -395,14 +417,18 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 12, fontWeight: 700, color: `hsla(${h},${isDark ? '60%,70%' : '70%,35%'},1)`,
                   }}>
-                    {phoneInitials(c.phone)}
+                    {contactInitials(c.name, c.phone)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span style={{ fontWeight: 600, fontSize: 12.5, color: isActive ? (isDark ? '#fff' : '#0f172a') : (isDark ? '#d1d5db' : '#334155') }}>
-                        +{c.phone}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 6 }}>
+                      <span style={{
+                        fontWeight: 600, fontSize: 13,
+                        color: isActive ? (isDark ? '#fff' : '#0f172a') : (isDark ? '#d1d5db' : '#334155'),
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>
+                        {c.name || `+${c.phone}`}
                       </span>
-                      <span style={{ fontSize: 10, color: isDark ? '#6b7280' : '#94a3b8', flexShrink: 0, marginLeft: 4 }}>
+                      <span style={{ fontSize: 10, color: isDark ? '#6b7280' : '#94a3b8', flexShrink: 0 }}>
                         {formatTime(c.lastMessage.timestamp)}
                       </span>
                     </div>
@@ -462,10 +488,22 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 12, fontWeight: 700, color: isDark ? NEON : '#059669',
               }}>
-                {phoneInitials(active.phone)}
+                {contactInitials(active.name, active.phone)}
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: isDark ? '#fff' : '#0f172a' }}>+{active.phone}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: isDark ? '#fff' : '#0f172a' }}>
+                    {active.name || `+${active.phone}`}
+                  </div>
+                  {active.name && (
+                    <span style={{
+                      fontSize: 12, fontWeight: 600, color: isDark ? '#9ca3af' : '#64748b',
+                      fontFamily: 'monospace',
+                    }}>
+                      +{active.phone}
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontSize: 11, color: isDark ? '#6b7280' : '#64748b', marginTop: 1 }}>
                   {active.messages.length} exchange{active.messages.length !== 1 ? 's' : ''}
                 </div>
@@ -603,7 +641,7 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             fontSize: 11, fontWeight: 700, color: isDark ? NEON : '#059669',
                           }}>
-                            {phoneInitials(active.phone)}
+                            {contactInitials(active.name, active.phone)}
                           </div>
                         </div>
                       )}

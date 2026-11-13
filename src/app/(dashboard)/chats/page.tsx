@@ -1,9 +1,9 @@
-import { getMessages, ChatMessage } from '@/lib/redis';
-import ChatsUI from '@/components/dashboard/ChatsUI';
+import { getMessages, getContactNamesMap, ChatMessage } from '@/lib/redis';
+import ChatsUI, { Contact } from '@/components/dashboard/ChatsUI';
 
 export const dynamic = 'force-dynamic';
 
-function groupByPhone(messages: ChatMessage[]) {
+function groupByPhone(messages: ChatMessage[], nameMap: Map<string, string>): Contact[] {
   const map = new Map<string, ChatMessage[]>();
   for (const msg of messages) {
     if (!map.has(msg.from)) map.set(msg.from, []);
@@ -12,6 +12,7 @@ function groupByPhone(messages: ChatMessage[]) {
   return Array.from(map.entries())
     .map(([phone, msgs]) => ({
       phone,
+      name: nameMap.get(phone) || null,
       messages: msgs.sort((a, b) => b.timestamp - a.timestamp),
       lastMessage: msgs.reduce((l, m) => m.timestamp > l.timestamp ? m : l),
     }))
@@ -26,7 +27,9 @@ export default async function ChatsPage({
   const resolvedParams = searchParams ? await searchParams : undefined;
   const initialPhone = resolvedParams?.phone ? decodeURIComponent(resolvedParams.phone) : undefined;
   const messages = await getMessages();
-  const contacts = groupByPhone(messages);
+  const phones = Array.from(new Set(messages.map(m => m.from)));
+  const nameMap = await getContactNamesMap(phones);
+  const contacts = groupByPhone(messages, nameMap);
   return (
     <div style={{ height: '100%' }}>
       <ChatsUI contacts={contacts} total={messages.length} initialPhone={initialPhone} />

@@ -379,6 +379,39 @@ export async function getLeads(): Promise<Lead[]> {
   }));
 }
 
+export async function getContactNamesMap(phones: string[]): Promise<Map<string, string>> {
+  if (phones.length === 0) return new Map();
+  const db = await getDb();
+  const [profiles, enrollments, interventions, demos, discounts] = await Promise.all([
+    db.collection('contact_profiles').find({ phone: { $in: phones } }).toArray(),
+    db.collection('enrollment_sessions').find({ phone: { $in: phones } }).toArray(),
+    db.collection('human_interventions').find({ phone: { $in: phones } }).toArray(),
+    db.collection('demo_requests').find({ phone: { $in: phones } }).toArray(),
+    db.collection('discount_requests').find({ phone: { $in: phones } }).toArray(),
+  ]);
+
+  const map = new Map<string, string>();
+  for (const doc of enrollments) {
+    if (doc.name && typeof doc.name === 'string' && doc.name.trim()) map.set(doc.phone as string, doc.name.trim());
+  }
+  for (const doc of demos) {
+    const n = (doc.name || doc.collectedName) as string | undefined;
+    if (n && typeof n === 'string' && n.trim()) map.set(doc.phone as string, n.trim());
+  }
+  for (const doc of discounts) {
+    const n = (doc.name || doc.collectedName) as string | undefined;
+    if (n && typeof n === 'string' && n.trim()) map.set(doc.phone as string, n.trim());
+  }
+  for (const doc of interventions) {
+    if (doc.name && typeof doc.name === 'string' && doc.name.trim()) map.set(doc.phone as string, doc.name.trim());
+  }
+  for (const doc of profiles) {
+    if (doc.name && typeof doc.name === 'string' && doc.name.trim()) map.set(doc.phone as string, doc.name.trim());
+  }
+
+  return map;
+}
+
 // ── Discount Requests ──────────────────────────────────────────────────────
 
 export interface DiscountRequest {
