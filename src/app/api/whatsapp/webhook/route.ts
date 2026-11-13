@@ -5,7 +5,7 @@ import {
   sendWhatsAppMessage, sendWhatsAppDocument,
   downloadWhatsAppMedia,
 } from '@/lib/whatsapp';
-import { getAIReply, verifyPaymentReceiptWithAI } from '@/lib/gemini';
+import { getAIReply, getAIReplyWithImage, verifyPaymentReceiptWithAI } from '@/lib/gemini';
 import { CORE_SYSTEM_PROMPT, WELCOME_GREETING } from '@/lib/knowledge';
 import {
   saveMessage, getRecentMessagesByPhone, hasPriorMessages, claimNewLead,
@@ -431,17 +431,21 @@ async function runEnrollmentMachine(
   switch (session.state) {
 
     case 'collecting_name': {
-      // Image sent before name/email — upload to Drive for display only, redirect user
       if (msgType === 'image' && imageId) {
         try {
           const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
+          const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+          if (!verification.isPaymentReceipt) {
+            reply = await getAIReplyWithImage(text, buffer, mimeType, history, enrollmentSystemPrompt);
+            break;
+          }
           const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now());
           mediaUrl = fileId;
         } catch (err) {
           console.error('Drive upload failed (collecting_name):', err instanceof Error ? err.message : err);
         }
         const what = session.email ? '*full name*' : '*full name* and *email address*';
-        reply = `Please share your ${what} first so we can get you enrolled! 😊`;
+        reply = `We've received your payment screenshot! Please share your ${what} first so we can link it and get you enrolled! 😊`;
         break;
       }
 
@@ -507,16 +511,20 @@ async function runEnrollmentMachine(
     }
 
     case 'collecting_email': {
-      // Image sent before email — upload to Drive for display only, redirect user
       if (msgType === 'image' && imageId) {
         try {
           const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
+          const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+          if (!verification.isPaymentReceipt) {
+            reply = await getAIReplyWithImage(text, buffer, mimeType, history, enrollmentSystemPrompt);
+            break;
+          }
           const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now());
           mediaUrl = fileId;
         } catch (err) {
           console.error('Drive upload failed (collecting_email):', err instanceof Error ? err.message : err);
         }
-        reply = `Please share your *email address* first (e.g. name@gmail.com) and then we'll get to the payment screenshot! 😊`;
+        reply = `We've received your payment screenshot! Please share your *email address* first (e.g. name@gmail.com) so we can complete your enrollment! 😊`;
         break;
       }
       const { email } = extractEmailAndName(text);
@@ -546,16 +554,35 @@ async function runEnrollmentMachine(
     case 'awaiting_screenshot': {
       const isImage = msgType === 'image' || (msgType === 'document' && Boolean(imageId));
       if (isImage && imageId) {
+        let buffer: Buffer;
+        let mimeType: string;
+        try {
+          const media = await downloadWhatsAppMedia(imageId);
+          buffer = media.buffer;
+          mimeType = media.mimeType;
+        } catch (downloadErr) {
+          console.error('Failed to download media in awaiting_screenshot:', downloadErr);
+          reply = `We received an image, but could not load it properly. Please try sending your payment receipt again!`;
+          break;
+        }
+
+        const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+
+        if (!verification.isPaymentReceipt) {
+          // Student sent a non-payment image (e.g. syllabus, website screenshot, question)
+          const aiReply = await getAIReplyWithImage(text, buffer, mimeType, history, enrollmentSystemPrompt);
+          reply = `${aiReply}\n\n*(Note: To confirm your seat in the bootcamp, please share your fee transfer receipt of Rs 7,499 / 7,500 to HabibMetro: Data Crumbs or 0336-2507273: Abis Hussain Syed)* 😊`;
+          break;
+        }
+
+        // It is an actual payment receipt!
         let fileId = '';
         let webViewLink = '';
         let rowIndex = -1;
+        const ts = Date.now();
 
         try {
-          const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
-          const ts = Date.now();
-          const driveRes = await uploadScreenshotToDrive(
-            buffer, mimeType, from, ts,
-          );
+          const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
           fileId = driveRes.fileId;
           webViewLink = driveRes.webViewLink;
 
@@ -615,14 +642,32 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
     case 'screenshot_received': {
       const isImage = msgType === 'image' || (msgType === 'document' && Boolean(imageId));
       if (isImage && imageId) {
+        let buffer: Buffer;
+        let mimeType: string;
+        try {
+          const media = await downloadWhatsAppMedia(imageId);
+          buffer = media.buffer;
+          mimeType = media.mimeType;
+        } catch (downloadErr) {
+          console.error('Failed to download media in screenshot_received:', downloadErr);
+          reply = `We received an image, but could not load it properly. Please try sending it again!`;
+          break;
+        }
+
+        const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+
+        if (!verification.isPaymentReceipt) {
+          // User sent a non-payment image while waiting for verification (like the syllabus screenshot)
+          reply = await getAIReplyWithImage(text, buffer, mimeType, history, enrollmentSystemPrompt);
+          break;
+        }
+
+        // It is an updated payment receipt!
         let fileId = '';
         let webViewLink = '';
         try {
-          const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
           const ts = Date.now();
-          const driveRes = await uploadScreenshotToDrive(
-            buffer, mimeType, from, ts,
-          );
+          const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
           fileId = driveRes.fileId;
           webViewLink = driveRes.webViewLink;
         } catch (err: unknown) {
@@ -635,11 +680,11 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
           mediaUrl = fileId;
         }
 
-        reply = `✅ Thanks! We've received your image upload. Our team will review and verify it to confirm your enrollment shortly.`;
+        reply = `✅ Thanks! We've received your updated payment receipt. Our admissions team will review and verify it shortly.`;
       } else if (msgType === 'text' && text.trim() && enrollmentSystemPrompt) {
         reply = await getAIReply(text, history, enrollmentSystemPrompt);
       } else {
-        reply = `We've received your image upload and our team is reviewing it! We will update you shortly. 😊`;
+        reply = `We've received your payment receipt and our team is reviewing it! We will update you shortly. 😊`;
       }
       break;
     }
@@ -647,10 +692,29 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
     case 'approved':
     case 'rejected': {
       if ((msgType === 'image' || msgType === 'document') && imageId) {
+        let buffer: Buffer;
+        let mimeType: string;
+        try {
+          const media = await downloadWhatsAppMedia(imageId);
+          buffer = media.buffer;
+          mimeType = media.mimeType;
+        } catch (downloadErr) {
+          console.error('Failed to download media in approved/rejected:', downloadErr);
+          reply = `We received an image, but could not load it properly. Please try sending it again!`;
+          break;
+        }
+
+        const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+
+        if (!verification.isPaymentReceipt) {
+          // Student is approved or rejected and sent a screenshot (e.g. LMS issue, question, syllabus)
+          reply = await getAIReplyWithImage(text, buffer, mimeType, history, session.state === 'approved' ? CORE_SYSTEM_PROMPT : (enrollmentSystemPrompt || CORE_SYSTEM_PROMPT));
+          break;
+        }
+
         let fileId = '';
         let webViewLink = '';
         try {
-          const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
           const ts = Date.now();
           const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
           fileId = driveRes.fileId;
@@ -1157,6 +1221,38 @@ export async function POST(req: NextRequest) {
       // ── 2. Handle image/screenshot uploads when no active session exists ──
       if (msgType !== 'text') {
         if ((msgType === 'image' || msgType === 'document') && imageId) {
+          let buffer: Buffer;
+          let mimeType: string;
+          try {
+            const media = await downloadWhatsAppMedia(imageId);
+            buffer = media.buffer;
+            mimeType = media.mimeType;
+          } catch (downloadErr) {
+            console.error('Failed to download media in section 2:', downloadErr);
+            return;
+          }
+
+          const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+
+          if (!verification.isPaymentReceipt) {
+            // Non-payment image sent by a lead without active session (e.g. syllabus, website, error, question)
+            const history: GeminiHistory = recentMsgs.flatMap(m => [
+              ...(m.text && m.text !== '[image]' ? [{ role: 'user' as const, parts: [{ text: m.text }] }] : []),
+              ...(m.reply ? [{ role: 'model' as const, parts: [{ text: m.reply }] }] : []),
+            ]);
+            const reply = await getAIReplyWithImage(text, buffer, mimeType, history);
+            await sendWhatsAppMessage(from, reply);
+            await saveMessage({
+              from,
+              text: text && text.trim() ? text : '[image]',
+              reply,
+              timestamp: Date.now(),
+              mediaType: 'image',
+            });
+            return;
+          }
+
+          // It IS an actual payment receipt!
           let mediaUrl: string | undefined;
           let webViewLink = '';
           let rowIndex = -1;
@@ -1166,7 +1262,6 @@ export async function POST(req: NextRequest) {
           const studentEmail = contactProfile?.email || contactProfile?.discountCollectedEmail || null;
 
           try {
-            const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
             const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
             mediaUrl = driveRes.fileId;
             webViewLink = driveRes.webViewLink;
