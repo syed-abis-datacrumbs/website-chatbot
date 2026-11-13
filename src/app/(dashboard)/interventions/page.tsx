@@ -50,9 +50,6 @@ export default function InterventionsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [resolvingPhone, setResolvingPhone] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'resolved'>('pending');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'payment' | 'discount' | 'demo'>('all');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const glassBg = isDark
@@ -64,7 +61,7 @@ export default function InterventionsPage() {
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 4500);
+    setTimeout(() => setToast(null), 4000);
   };
 
   const loadInterventions = useCallback(async (isRefresh = false) => {
@@ -73,9 +70,8 @@ export default function InterventionsPage() {
       const res = await fetch('/api/interventions', { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      // Filter out any non-payment/discount/demo items
       const valid = ((data.interventions || []) as HumanIntervention[]).filter(
-        i => i.category === 'payment' || i.category === 'discount' || i.category === 'demo'
+        i => (i.category === 'payment' || i.category === 'discount' || i.category === 'demo')
       );
       setItems(valid);
     } catch (err) {
@@ -115,6 +111,7 @@ export default function InterventionsPage() {
     try {
       const res = await fetch(`/api/interventions/${encodeURIComponent(phone)}/resolve`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to resolve');
+      // Optimistically mark resolved so it disappears immediately from pending list
       setItems(prev => prev.map(item =>
         item.phone === phone ? { ...item, status: 'resolved', resolvedAt: Date.now() } : item
       ));
@@ -127,38 +124,13 @@ export default function InterventionsPage() {
     }
   };
 
-  // Strictly filter: ONLY payment, discount, demo
-  const validItems = useMemo(() => items.filter(
-    i => i.category === 'payment' || i.category === 'discount' || i.category === 'demo'
-  ), [items]);
-
-  const filtered = useMemo(() => validItems.filter(item => {
-    if (statusFilter !== 'all' && item.status !== statusFilter) return false;
-    if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      const numOnly = q.replace(/\D/g, '');
-      const matchName  = item.name && item.name.toLowerCase().includes(q);
-      const matchPhone = numOnly ? item.phone.includes(numOnly) : item.phone.includes(q);
-      const matchReason = item.reason.toLowerCase().includes(q);
-      const matchMsg    = item.lastMessage.toLowerCase().includes(q);
-      if (!matchName && !matchPhone && !matchReason && !matchMsg) return false;
-    }
-    return true;
-  }), [validItems, statusFilter, categoryFilter, search]);
-
-  const pendingCount  = useMemo(() => validItems.filter(i => i.status === 'pending').length, [validItems]);
-  const resolvedCount = useMemo(() => validItems.filter(i => i.status === 'resolved').length, [validItems]);
-
-  const catCounts = useMemo(() => {
-    const counts: Record<'payment' | 'discount' | 'demo', number> = { payment: 0, discount: 0, demo: 0 };
-    for (const item of validItems) {
-      if (counts[item.category] !== undefined) {
-        counts[item.category]++;
-      }
-    }
-    return counts;
-  }, [validItems]);
+  // ONLY PENDING interventions shown (strictly payment, discount, demo)
+  const pendingItems = useMemo(() => {
+    return items.filter(
+      item => item.status === 'pending' &&
+      (item.category === 'payment' || item.category === 'discount' || item.category === 'demo')
+    );
+  }, [items]);
 
   return (
     <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -179,7 +151,7 @@ export default function InterventionsPage() {
 
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
                 width: 44, height: 44, borderRadius: 12, flexShrink: 0,
@@ -195,18 +167,25 @@ export default function InterventionsPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <h1 style={{ fontSize: 26, fontWeight: 700, color: textCol, margin: 0 }}>Human Interventions</h1>
-                  {pendingCount > 0 && (
+                  {pendingItems.length > 0 ? (
                     <span style={{
                       fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
                       background: '#ef4444', color: '#fff', letterSpacing: '0.4px',
                       boxShadow: '0 0 10px rgba(239,68,68,0.4)',
                     }}>
-                      {pendingCount} ACTION REQUIRED
+                      {pendingItems.length} PENDING ACTION
+                    </span>
+                  ) : (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+                      background: 'rgba(92,228,109,0.15)', color: NEON, letterSpacing: '0.4px',
+                    }}>
+                      ALL CAUGHT UP
                     </span>
                   )}
                 </div>
                 <p style={{ fontSize: 13, color: textMuted, marginTop: 4, marginBottom: 0 }}>
-                  Payment claims · Discount requests · Demo requests
+                  Active leads requiring review · Payment claims · Discount requests · Demo requests
                 </p>
               </div>
             </div>
@@ -252,158 +231,42 @@ export default function InterventionsPage() {
               </button>
             </div>
           </div>
-
-          {/* Quick Metric Cards - ONLY Pending, Resolved, Payment, Discount, Demo */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, marginTop: 20 }}>
-            {/* Pending */}
-            <div style={{
-              background: glassBg, borderRadius: 12, padding: '12px 16px',
-              border: `1px solid ${pendingCount > 0 ? 'rgba(239,68,68,0.4)' : borderCol}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: textMuted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pending</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: pendingCount > 0 ? '#ef4444' : textCol, marginTop: 2 }}>{pendingCount}</div>
-              </div>
-              <div style={{ fontSize: 22 }}>⚠️</div>
-            </div>
-            {/* Resolved */}
-            <div style={{
-              background: glassBg, borderRadius: 12, padding: '12px 16px',
-              border: `1px solid ${borderCol}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: textMuted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Resolved</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: NEON, marginTop: 2 }}>{resolvedCount}</div>
-              </div>
-              <div style={{ fontSize: 22 }}>✅</div>
-            </div>
-            {/* Payment, Discount, Demo */}
-            {(['payment', 'discount', 'demo'] as const).map(cat => {
-              const cfg = CATEGORY_CONFIG[cat];
-              const count = catCounts[cat] || 0;
-              return (
-                <div
-                  key={cat}
-                  onClick={() => setCategoryFilter(cat)}
-                  title={`Filter by ${cfg.label}`}
-                  style={{
-                    background: glassBg, borderRadius: 12, padding: '12px 16px',
-                    border: `1px solid ${categoryFilter === cat ? cfg.color : borderCol}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    cursor: 'pointer',
-                    transition: 'border-color 0.15s',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: textMuted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{cfg.label}</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: cfg.color, marginTop: 2 }}>{count}</div>
-                  </div>
-                  <div style={{ fontSize: 22 }}>{cfg.icon}</div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Filters Row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
-            <input
-              type="text" value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name, phone, reason, or message…"
-              style={{
-                flex: 1, minWidth: 240, maxWidth: 440,
-                background: isDark ? '#0d1511' : '#fff',
-                border: `1px solid ${borderCol}`, borderRadius: 8,
-                padding: '8px 13px', fontSize: 13, color: textCol, outline: 'none',
-              }}
-            />
-            {/* Status pills */}
-            <div style={{ display: 'flex', gap: 5 }}>
-              {(['pending', 'resolved', 'all'] as const).map(tab => {
-                const cnt = tab === 'pending' ? pendingCount : tab === 'resolved' ? resolvedCount : validItems.length;
-                const active = statusFilter === tab;
-                return (
-                  <button key={tab} onClick={() => setStatusFilter(tab)} style={{
-                    padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                    border: `1px solid ${active ? NEON : borderCol}`,
-                    background: active ? (isDark ? 'rgba(92,228,109,0.15)' : 'rgba(92,228,109,0.1)') : (isDark ? 'rgba(20,29,25,0.4)' : '#fff'),
-                    color: active ? (isDark ? NEON : '#166534') : textMuted,
-                    textTransform: 'capitalize',
-                  }}>
-                    {tab}
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 8,
-                      background: active ? (isDark ? NEON : '#166534') : (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'),
-                      color: active ? '#000' : textMuted,
-                    }}>{cnt}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {/* Category pills - ONLY Payment, Discount, Demo */}
-            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-              <button onClick={() => setCategoryFilter('all')} style={{
-                padding: '7px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                cursor: 'pointer', border: `1px solid ${categoryFilter === 'all' ? NEON : borderCol}`,
-                background: categoryFilter === 'all' ? (isDark ? 'rgba(92,228,109,0.1)' : 'rgba(92,228,109,0.08)') : (isDark ? 'rgba(20,29,25,0.4)' : '#fff'),
-                color: categoryFilter === 'all' ? (isDark ? NEON : '#166534') : textMuted,
-              }}>All Types</button>
-              {(['payment', 'discount', 'demo'] as const).map(cat => {
-                const cfg = CATEGORY_CONFIG[cat];
-                const cnt = catCounts[cat] || 0;
-                const active = categoryFilter === cat;
-                return (
-                  <button key={cat} onClick={() => setCategoryFilter(cat)} style={{
-                    padding: '7px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                    cursor: 'pointer', border: `1px solid ${active ? cfg.color : borderCol}`,
-                    background: active ? cfg.bg : (isDark ? 'rgba(20,29,25,0.4)' : '#fff'),
-                    color: active ? cfg.color : textMuted,
-                  }}>
-                    {cfg.icon} {cfg.label} ({cnt})
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </div>
 
-        {/* Table */}
+        {/* Pending Table */}
         {loading ? (
           <div style={{ background: glassBg, border: `1px solid ${borderCol}`, borderRadius: 16, padding: '60px 24px', textAlign: 'center', color: textMuted }}>
-            Loading intervention records…
+            Loading pending interventions…
           </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ background: glassBg, border: `1px solid ${borderCol}`, borderRadius: 16, padding: '60px 24px', textAlign: 'center', color: textMuted, fontSize: 14 }}>
-            {search.trim() || categoryFilter !== 'all' ? 'No records match your search / filter.' :
-              statusFilter === 'pending' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                  <div style={{ fontSize: 32 }}>🎉</div>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: textCol }}>All caught up!</div>
-                  <div style={{ fontSize: 13, color: textMuted }}>No leads need human attention right now.</div>
-                  <button onClick={handleBackfill} disabled={backfilling} style={{
-                    marginTop: 8, padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                    cursor: 'pointer', border: '1px solid rgba(139,92,246,0.4)',
-                    background: 'rgba(139,92,246,0.1)', color: '#8b5cf6',
-                  }}>
-                    {backfilling ? 'Importing…' : '📥 Import Past Records'}
-                  </button>
-                </div>
-              ) : 'No records found.'
-            }
+        ) : pendingItems.length === 0 ? (
+          <div style={{
+            background: glassBg, border: `1px solid ${borderCol}`, borderRadius: 16,
+            padding: '60px 24px', textAlign: 'center', color: textMuted, fontSize: 14,
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 36 }}>🎉</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: textCol }}>All caught up!</div>
+              <div style={{ fontSize: 13, color: textMuted }}>No leads currently require human intervention.</div>
+              <button onClick={handleBackfill} disabled={backfilling} style={{
+                marginTop: 10, padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', border: '1px solid rgba(139,92,246,0.4)',
+                background: 'rgba(139,92,246,0.1)', color: '#8b5cf6',
+              }}>
+                {backfilling ? 'Importing…' : '📥 Import Past Records'}
+              </button>
+            </div>
           </div>
         ) : (
           <div style={{ background: glassBg, border: `1px solid ${borderCol}`, borderRadius: 16, overflow: 'hidden', boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.05)' }}>
             {/* Table header */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '36px 200px 100px 200px 1fr 130px 190px',
-              padding: '11px 20px',
+              gridTemplateColumns: '36px 180px 100px 190px 1fr 120px 160px',
+              padding: '12px 20px',
+              gap: 10,
               background: isDark ? 'rgba(13,20,17,0.7)' : '#f8fafc',
               borderBottom: `1px solid ${borderCol}`,
-              fontSize: 10, fontWeight: 600, color: textMuted,
+              fontSize: 11, fontWeight: 600, color: textMuted,
               textTransform: 'uppercase', letterSpacing: '0.6px', alignItems: 'center',
             }}>
               <div>#</div>
@@ -416,8 +279,7 @@ export default function InterventionsPage() {
             </div>
 
             {/* Rows */}
-            {filtered.map((item, idx) => {
-              const isPending = item.status === 'pending';
+            {pendingItems.map((item, idx) => {
               const isResolving = resolvingPhone === item.phone;
               const catCfg = CATEGORY_CONFIG[item.category] || CATEGORY_CONFIG.payment;
 
@@ -426,34 +288,33 @@ export default function InterventionsPage() {
                   key={`${item.phone}-${item.flaggedAt}`}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '36px 200px 100px 200px 1fr 130px 190px',
-                    padding: '14px 20px',
-                    borderBottom: idx < filtered.length - 1 ? `1px solid ${borderCol}` : 'none',
-                    background: isPending ? (isDark ? 'rgba(239,68,68,0.025)' : 'rgba(239,68,68,0.015)') : 'transparent',
-                    alignItems: 'center', fontSize: 13,
+                    gridTemplateColumns: '36px 180px 100px 190px 1fr 120px 160px',
+                    padding: '16px 20px',
+                    borderBottom: idx < pendingItems.length - 1 ? `1px solid ${borderCol}` : 'none',
+                    background: isDark ? 'rgba(239,68,68,0.02)' : 'rgba(239,68,68,0.015)',
+                    alignItems: 'start', fontSize: 13, gap: 10,
                   }}
                 >
                   {/* # */}
-                  <div style={{ color: textMuted, fontSize: 11 }}>{idx + 1}</div>
+                  <div style={{ color: textMuted, fontSize: 12, paddingTop: 2 }}>{idx + 1}</div>
 
                   {/* Student */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                  <div style={{ paddingTop: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600, color: textCol, fontSize: 13 }}>
                         {item.name || 'Unknown Student'}
                       </span>
                       <span style={{
-                        fontSize: 10, padding: '1px 5px', borderRadius: 5, fontWeight: 700,
-                        background: isPending ? 'rgba(239,68,68,0.15)' : 'rgba(92,228,109,0.15)',
-                        color: isPending ? '#ef4444' : NEON,
-                      }}>{isPending ? 'PENDING' : 'DONE'}</span>
+                        fontSize: 9, padding: '1px 5px', borderRadius: 4, fontWeight: 700,
+                        background: 'rgba(239,68,68,0.15)', color: '#ef4444',
+                      }}>PENDING</span>
                     </div>
-                    <div style={{ fontSize: 11, color: textMuted, fontFamily: 'monospace', marginTop: 2 }}>+{item.phone}</div>
-                    {item.email && <div style={{ fontSize: 11, color: textMuted, marginTop: 1 }}>{item.email}</div>}
+                    <div style={{ fontSize: 11, color: textMuted, fontFamily: 'monospace', marginTop: 3 }}>+{item.phone}</div>
+                    {item.email && <div style={{ fontSize: 11, color: textMuted, marginTop: 2, wordBreak: 'break-all' }}>{item.email}</div>}
                   </div>
 
                   {/* Category */}
-                  <div>
+                  <div style={{ paddingTop: 2 }}>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 4,
                       padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
@@ -467,23 +328,22 @@ export default function InterventionsPage() {
                   <div>
                     <div
                       style={{
-                        padding: '4px 8px', borderRadius: 6, fontSize: 11,
-                        background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)'}`,
-                        color: textCol, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        padding: '8px 12px', borderRadius: 8, fontSize: 12, lineHeight: '1.5',
+                        background: isDark ? 'rgba(0,0,0,0.25)' : '#f1f5f9',
+                        borderLeft: `3px solid ${catCfg.color || '#f59e0b'}`,
+                        color: textCol, wordBreak: 'break-word',
                       }}
-                      title={item.reason}
                     >
                       {item.reason}
                     </div>
                   </div>
 
                   {/* Message */}
-                  <div style={{ paddingRight: 12 }}>
+                  <div>
                     <div style={{
-                      padding: '7px 10px', borderRadius: 7, fontSize: 12, fontStyle: 'italic',
+                      padding: '8px 12px', borderRadius: 8, fontSize: 12, fontStyle: 'italic',
                       background: isDark ? 'rgba(0,0,0,0.25)' : '#f1f5f9',
-                      borderLeft: `3px solid ${isPending ? '#ef4444' : NEON}`,
+                      borderLeft: '3px solid #ef4444',
                       color: textCol, lineHeight: '1.5', wordBreak: 'break-word',
                     }}>
                       &ldquo;{item.lastMessage}&rdquo;
@@ -491,13 +351,13 @@ export default function InterventionsPage() {
                   </div>
 
                   {/* Flagged At */}
-                  <div>
+                  <div style={{ paddingTop: 2 }}>
                     <div style={{ color: textCol, fontWeight: 500, fontSize: 12 }}>{formatRelativeTime(item.flaggedAt)}</div>
                     <div style={{ color: textMuted, fontSize: 10, marginTop: 2 }}>{formatFullTime(item.flaggedAt)}</div>
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, paddingTop: 2 }}>
                     <Link
                       href={`/chats?phone=${encodeURIComponent(item.phone)}`}
                       style={{
@@ -517,36 +377,22 @@ export default function InterventionsPage() {
                       Chat
                     </Link>
 
-                    {isPending ? (
-                      <button
-                        onClick={() => handleResolve(item.phone)}
-                        disabled={isResolving}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 4,
-                          padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-                          cursor: isResolving ? 'not-allowed' : 'pointer',
-                          background: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)',
-                          color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)',
-                        }}
-                      >
-                        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        {isResolving ? '…' : 'Resolve'}
-                      </button>
-                    ) : (
-                      <a
-                        href={`https://wa.me/${item.phone}`}
-                        target="_blank" rel="noreferrer"
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 4,
-                          padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                          textDecoration: 'none',
-                          background: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
-                          color: textMuted, border: `1px solid ${borderCol}`,
-                        }}
-                      >WA</a>
-                    )}
+                    <button
+                      onClick={() => handleResolve(item.phone)}
+                      disabled={isResolving}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                        cursor: isResolving ? 'not-allowed' : 'pointer',
+                        background: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)',
+                        color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)',
+                      }}
+                    >
+                      <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {isResolving ? '…' : 'Resolve'}
+                    </button>
                   </div>
                 </div>
               );
