@@ -84,9 +84,9 @@ function groupByPhone(messages: ChatMessage[]): Contact[] {
     .sort((a, b) => b.lastMessage.timestamp - a.lastMessage.timestamp);
 }
 
-export default function ChatsUI({ contacts: initial, total }: { contacts: Contact[]; total: number }) {
+export default function ChatsUI({ contacts: initial, total, initialPhone }: { contacts: Contact[]; total: number; initialPhone?: string }) {
   const [contacts,    setContacts]    = useState<Contact[]>(initial);
-  const [selected,    setSelected]    = useState<string | null>(initial[0]?.phone ?? null);
+  const [selected,    setSelected]    = useState<string | null>(initialPhone ?? initial[0]?.phone ?? null);
   const [input,       setInput]       = useState('');
   const [sending,     setSending]     = useState(false);
   const [attachBrochure, setAttachBrochure] = useState(false);
@@ -133,6 +133,13 @@ export default function ChatsUI({ contacts: initial, total }: { contacts: Contac
   function clearDateFilter() {
     setDateFrom(''); setDateTo(''); setTimeFrom(''); setTimeTo('');
   }
+
+  // Set selected chat if initialPhone was passed
+  useEffect(() => {
+    if (initialPhone) {
+      setSelected(initialPhone);
+    }
+  }, [initialPhone]);
 
   // Close popovers on outside click
   useEffect(() => {

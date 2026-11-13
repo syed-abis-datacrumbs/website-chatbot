@@ -182,16 +182,17 @@ export async function deleteMessagesByPhone(phone: string): Promise<number> {
   return result.deletedCount;
 }
 
-export interface NavCounts { chats: number; leads: number; enrollments: number }
+export interface NavCounts { chats: number; leads: number; enrollments: number; interventions: number; }
 
 export async function getNavCounts(): Promise<NavCounts> {
   const db = await getDb();
-  const [phones, enrollments] = await Promise.all([
+  const [phones, enrollments, interventions] = await Promise.all([
     db.collection('wa_messages').distinct('from'),
     db.collection('enrollment_sessions').countDocuments(),
+    db.collection('human_interventions').countDocuments({ status: 'pending' }),
   ]);
   // Chats and Leads currently derive from the same distinct-contact set
-  return { chats: phones.length, leads: phones.length, enrollments };
+  return { chats: phones.length, leads: phones.length, enrollments, interventions };
 }
 
 export async function hasPriorMessages(phone: string): Promise<boolean> {
@@ -548,4 +549,185 @@ export async function getBrochure(): Promise<{ data: Buffer; filename: string; u
     filename:   doc.value.filename as string,
     uploadedAt: doc.value.uploadedAt as number,
   };
+}
+
+// ── Human Interventions ───────────────────────────────────────────────────
+
+export interface HumanIntervention {
+  phone: string;
+  name?: string | null;
+  email?: string | null;
+  category: 'payment' | 'discount' | 'demo';
+  reason: string;
+  lastMessage: string;
+  flaggedAt: number;
+  status: 'pending' | 'resolved';
+  resolvedAt?: number;
+}
+
+export async function createHumanIntervention(data: {
+  phone: string;
+  name?: string | null;
+  email?: string | null;
+  category: 'payment' | 'discount' | 'demo';
+  reason: string;
+  lastMessage: string;
+  flaggedAt?: number;
+}): Promise<void> {
+  const db = await getDb();
+  await db.collection('human_interventions').updateOne(
+    { phone: data.phone, status: 'pending' },
+    {
+      $set: {
+        phone: data.phone,
+        name: data.name || null,
+        email: data.email || null,
+        category: data.category,
+        reason: data.reason,
+        lastMessage: data.lastMessage,
+        flaggedAt: data.flaggedAt || Date.now(),
+        status: 'pending',
+      },
+    },
+    { upsert: true }
+  );
+}
+
+export async function getPendingInterventions(): Promise<HumanIntervention[]> {
+  const db = await getDb();
+  const docs = await db.collection('human_interventions')
+    .find({
+      status: 'pending',
+      category: { $in: ['payment', 'discount', 'demo'] },
+    })
+    .sort({ flaggedAt: -1 })
+    .toArray();
+  return docs.map(({ _id, ...rest }) => rest as unknown as HumanIntervention);
+}
+
+export async function getAllInterventions(limit = 100): Promise<HumanIntervention[]> {
+  const db = await getDb();
+  // Automatically clean up non-standard or previous false-positive entries from human_interventions
+  try {
+    await db.collection('human_interventions').deleteMany({
+      $or: [
+        { category: { $nin: ['payment', 'discount', 'demo'] } },
+        { lastMessage: /^[\w.+-]+@[\w-]+\.[\w.-]+$/i },
+        { lastMessage: /how\s*(can|do)\s*i\s*pay/i },
+        { lastMessage: /will\s*make\s*payment\s*by\s*evening/i },
+      ],
+    });
+  } catch {
+    // ignore
+  }
+
+  const docs = await db.collection('human_interventions')
+    .find({
+      category: { $in: ['payment', 'discount', 'demo'] },
+    })
+    .sort({ flaggedAt: -1 })
+    .limit(limit)
+    .toArray();
+  return docs.map(({ _id, ...rest }) => rest as unknown as HumanIntervention);
+}
+
+export async function resolveIntervention(phone: string): Promise<void> {
+  const db = await getDb();
+  await db.collection('human_interventions').updateMany(
+    { phone, status: 'pending' },
+    { $set: { status: 'resolved', resolvedAt: Date.now() } }
+  );
+}
+
+export async function getPendingInterventionsCount(): Promise<number> {
+  const db = await getDb();
+  return await db.collection('human_interventions').countDocuments({
+    status: 'pending',
+    category: { $in: ['payment', 'discount', 'demo'] },
+  });
+}
+
+// ── Intervention Backfill Helper ───────────────────────────────────────────
+// Scans wa_messages for payment claims and returns matched items.
+// READ-ONLY on wa_messages and contact_profiles. Never modifies them.
+export interface BackfillMessageMatch {
+  phone: string;
+  name?: string | null;
+  email?: string | null;
+  category: 'payment';
+  reason: string;
+  lastMessage: string;
+  flaggedAt: number;
+}
+
+export async function scanMessagesForInterventions(limit = 2000): Promise<BackfillMessageMatch[]> {
+  const db = await getDb();
+
+  // Newest first — so for any given phone, the first match we encounter is their LATEST message!
+  const msgs = await db.collection('wa_messages')
+    .find({})
+    .sort({ timestamp: -1 })
+    .limit(limit)
+    .toArray();
+
+  const phones = Array.from(new Set(msgs.map((m: Record<string, unknown>) => m.from as string)));
+  const profiles = await db.collection('contact_profiles').find({ phone: { $in: phones } }).toArray();
+  const profileMap = new Map<string, { name?: string; email?: string }>(
+    profiles.map((p: Record<string, unknown>) => [
+      p.phone as string,
+      { name: (p.name as string | undefined), email: (p.email as string | undefined) },
+    ])
+  );
+
+  const seenPhones = new Set<string>();
+  const matches: BackfillMessageMatch[] = [];
+
+  for (const m of msgs) {
+    const phone = m.from as string;
+    if (!phone || seenPhones.has(phone)) continue;
+
+    const text = ((m.text || '') as string).trim();
+    const reply = ((m.reply || '') as string);
+    if (!text || text === '[image]') continue;
+    const t = text.toLowerCase();
+    const r = reply.toLowerCase();
+
+    // 1. Ignore pure emails
+    if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/i.test(t)) continue;
+    // 2. Ignore asking how to pay
+    if (/\b(how\s*(can|do)\s*i\s*pay|how\s*to\s*pay|where\s*to\s*pay|tarika|payment\s*method|payment\s*details)\b/i.test(t)) continue;
+    // 3. Ignore future payment intentions ("will pay evening", "kal karunga")
+    if (/\b(will\s*(pay|send|transfer)|karunga|karungi|kal\s*(karunga|bhejunga)|evening\s*today|sham\s*ko)\b/i.test(t)) continue;
+
+    // Check past payment claim:
+    const hasPastPaymentClaim = /\b(already\s*paid|made\s*payment|payment\s*done|paid\s*on|pese\s*(bhej|kar)\s*diye|transfer\s*kar\s*diya|kar\s*diye\s*the|deducted|kat\s*gaye)\b/i.test(t) ||
+      (/\b(paid|transferred|sent|bheje|bhej|deposit)\b/i.test(t) && /\b(yesterday|kal|parson|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today\s*morning|aaj\s*subah|hours?\s*ago|already)\b/i.test(t));
+
+    // Check if bot explicitly escalated or redirected to support:
+    const botRedirectedToSupport = /\b(reach\s*out\s*to\s*our\s*support\s*team\s*directly|contact\s*our\s*support\s*team|let\s*me\s*flag\s*your\s*.*payment|expedite\s*your\s*verification)\b/i.test(r) &&
+      /\b(payment|verification)\b/i.test(r);
+
+    let reason = '';
+    if (hasPastPaymentClaim) {
+      reason = `Claimed past payment: "${text.slice(0, 100)}"`;
+    } else if (botRedirectedToSupport) {
+      reason = `Bot redirected to support / escalated: "${text.slice(0, 100)}"`;
+    } else {
+      continue;
+    }
+
+    seenPhones.add(phone);
+    const profile = profileMap.get(phone);
+    matches.push({
+      phone,
+      name: profile?.name || null,
+      email: profile?.email || null,
+      category: 'payment',
+      reason,
+      lastMessage: text,
+      flaggedAt: (m.timestamp as number) || Date.now(),
+    });
+  }
+
+  return matches;
 }

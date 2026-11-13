@@ -8,7 +8,7 @@ import { useTheme } from '@/context/ThemeContext';
 
 const NEON = '#5ce46d';
 
-type CountKey = 'chats' | 'leads' | 'enrollments';
+type CountKey = 'chats' | 'leads' | 'enrollments' | 'interventions';
 
 const NAV: { href: string; label: string; countKey?: CountKey; icon: React.ReactNode }[] = [
   {
@@ -47,6 +47,16 @@ const NAV: { href: string; label: string; countKey?: CountKey; icon: React.React
     icon: (
       <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+  {
+    href: '/interventions',
+    label: 'Interventions',
+    countKey: 'interventions',
+    icon: (
+      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
       </svg>
     ),
   },
@@ -118,7 +128,7 @@ export default function Sidebar() {
         {/* Logo */}
         <div style={{ marginBottom: 20 }}>
           <Image
-            src="/logo.png"
+            src={isDark ? '/logo.png' : '/logo-dark.png'}
             alt="DataCrumbs"
             width={140}
             height={50}
@@ -156,12 +166,20 @@ export default function Sidebar() {
                   <span style={{ fontSize: 14, fontWeight: active ? 600 : 400, flex: 1 }}>
                     {item.label}
                   </span>
-                  {item.countKey && counts != null && (
+                  {item.countKey && counts != null && counts[item.countKey] !== undefined && (
                     <span style={{
                       fontSize: 11, fontWeight: 600,
-                      color: active ? (isDark ? NEON : '#059669') : (isDark ? '#6b7280' : '#64748b'),
-                      background: active ? (isDark ? 'rgba(92,228,109,0.12)' : 'rgba(16,185,129,0.12)') : (isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'),
-                      border: `1px solid ${active ? (isDark ? 'rgba(92,228,109,0.3)' : '#a7f3d0') : (isDark ? '#202d26' : '#e2e8f0')}`,
+                      color: item.countKey === 'interventions' && counts[item.countKey] > 0
+                        ? '#ef4444'
+                        : active ? (isDark ? NEON : '#059669') : (isDark ? '#6b7280' : '#64748b'),
+                      background: item.countKey === 'interventions' && counts[item.countKey] > 0
+                        ? (isDark ? 'rgba(239,68,68,0.18)' : '#fee2e2')
+                        : active ? (isDark ? 'rgba(92,228,109,0.12)' : 'rgba(16,185,129,0.12)') : (isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'),
+                      border: `1px solid ${
+                        item.countKey === 'interventions' && counts[item.countKey] > 0
+                          ? (isDark ? 'rgba(239,68,68,0.4)' : '#fca5a5')
+                          : active ? (isDark ? 'rgba(92,228,109,0.3)' : '#a7f3d0') : (isDark ? '#202d26' : '#e2e8f0')
+                      }`,
                       borderRadius: 20, padding: '1px 8px',
                       flexShrink: 0,
                     }}>

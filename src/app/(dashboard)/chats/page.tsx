@@ -18,12 +18,18 @@ function groupByPhone(messages: ChatMessage[]) {
     .sort((a, b) => b.lastMessage.timestamp - a.lastMessage.timestamp);
 }
 
-export default async function ChatsPage() {
+export default async function ChatsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ phone?: string }>;
+}) {
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const initialPhone = resolvedParams?.phone ? decodeURIComponent(resolvedParams.phone) : undefined;
   const messages = await getMessages();
   const contacts = groupByPhone(messages);
   return (
     <div style={{ height: '100%' }}>
-      <ChatsUI contacts={contacts} total={messages.length} />
+      <ChatsUI contacts={contacts} total={messages.length} initialPhone={initialPhone} />
     </div>
   );
 }

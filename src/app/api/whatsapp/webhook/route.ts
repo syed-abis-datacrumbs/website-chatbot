@@ -12,7 +12,7 @@ import {
   getActiveEnrollmentSession, saveEnrollmentSession,
   getContactProfile, saveContactProfile,
   saveDiscountRequest, updateDiscountRequestComment,
-  saveDemoRequest,
+  saveDemoRequest, createHumanIntervention,
   type EnrollmentSession,
 } from '@/lib/redis';
 import {
@@ -350,6 +350,55 @@ function isQuestion(text: string): boolean {
   return questionWords.test(text);
 }
 
+// Detects if a message or conversation exchange requires human intervention
+function detectInterventionTrigger(text: string, aiReply: string): {
+  needsIntervention: boolean;
+  reason: string;
+  category: 'payment' | 'discount' | 'demo';
+} {
+  const t = text.toLowerCase().trim();
+  const r = aiReply.toLowerCase();
+
+  // 1. EXCLUDE pure emails (e.g. "student@gmail.com")
+  if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/i.test(t)) {
+    return { needsIntervention: false, reason: '', category: 'payment' };
+  }
+  // 2. EXCLUDE questions asking how to pay or account details (handled by bot)
+  if (/\b(how\s*(can|do)\s*i\s*pay|how\s*to\s*pay|where\s*to\s*pay|tarika|payment\s*method|payment\s*details)\b/i.test(t)) {
+    return { needsIntervention: false, reason: '', category: 'payment' };
+  }
+  // 3. EXCLUDE future payment promises ("will pay later/tonight/kal")
+  if (/\b(will\s*(pay|send|transfer)|karunga|karungi|kal\s*(karunga|bhejunga)|evening\s*today|sham\s*ko)\b/i.test(t)) {
+    return { needsIntervention: false, reason: '', category: 'payment' };
+  }
+
+  // Trigger 1: Explicit claim of PAST payment without receipt:
+  const hasPastPaymentClaim = /\b(already\s*paid|made\s*payment|payment\s*done|paid\s*on|pese\s*(bhej|kar)\s*diye|transfer\s*kar\s*diya|kar\s*diye\s*the|deducted|kat\s*gaye)\b/i.test(t) ||
+    (/\b(paid|transferred|sent|bheje|bhej|deposit)\b/i.test(t) && /\b(yesterday|kal|parson|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today\s*morning|aaj\s*subah|hours?\s*ago|already)\b/i.test(t));
+
+  if (hasPastPaymentClaim) {
+    return {
+      needsIntervention: true,
+      category: 'payment',
+      reason: `Claimed past payment: "${text.trim().slice(0, 100)}"`,
+    };
+  }
+
+  // Trigger 2: Bot genuinely could NOT handle and explicitly redirected to support or escalated:
+  const botRedirectedToSupport = /\b(reach\s*out\s*to\s*our\s*support\s*team\s*directly|contact\s*our\s*support\s*team|let\s*me\s*flag\s*your\s*.*payment|expedite\s*your\s*verification)\b/i.test(r) &&
+    /\b(payment|verification)\b/i.test(r);
+
+  if (botRedirectedToSupport) {
+    return {
+      needsIntervention: true,
+      category: 'payment',
+      reason: `Bot redirected to support / escalated: "${text.trim().slice(0, 100)}"`,
+    };
+  }
+
+  return { needsIntervention: false, reason: '', category: 'payment' };
+}
+
 type GeminiHistory = { role: 'user' | 'model'; parts: { text: string }[] }[];
 
 // Strip any enrollment nudge Gemini added (system prompt tells it to redirect),
@@ -591,6 +640,13 @@ Please ensure the payment was sent to our official details:
 • 📱 *Easypaisa / JazzCash / Raast:* ${walletNum} (Title: ${walletTitle})
 
 If you have already transferred to DataCrumbs, reply here or contact us at +92 329 2020497 and our admissions team will verify it manually!`;
+          await createHumanIntervention({
+            phone: from,
+            name: session.name || null,
+            category: 'payment',
+            reason: `Payment receipt mismatch: ${verification.reason || 'amount or title mismatch'}`,
+            lastMessage: '[receipt screenshot]',
+          });
           break;
         }
 
@@ -1026,9 +1082,19 @@ export async function POST(req: NextRequest) {
 
         if (finalName && finalEmail) {
           const ts = Date.now();
+          const origMsg = contactProfile.discountOriginalMessage || text;
           try {
-            await saveDiscountRequest({ phone: from, name: finalName, email: finalEmail, message: contactProfile.discountOriginalMessage || text, timestamp: ts });
-            await appendDiscountRow({ name: finalName, phone: from, email: finalEmail, message: contactProfile.discountOriginalMessage || text, timestamp: ts });
+            await saveDiscountRequest({ phone: from, name: finalName, email: finalEmail, message: origMsg, timestamp: ts });
+            await appendDiscountRow({ name: finalName, phone: from, email: finalEmail, message: origMsg, timestamp: ts });
+            await createHumanIntervention({
+              phone: from,
+              name: finalName,
+              email: finalEmail,
+              category: 'discount',
+              reason: `Discount requested: "${origMsg.trim().slice(0, 100)}"`,
+              lastMessage: origMsg,
+              flaggedAt: ts,
+            });
           } catch (err) {
             console.error('Failed to save discount request:', err instanceof Error ? err.message : err);
           }
@@ -1076,9 +1142,19 @@ export async function POST(req: NextRequest) {
 
         if (finalName && finalEmail) {
           const ts = Date.now();
+          const origMsg = contactProfile.demoOriginalMessage || text;
           try {
-            await saveDemoRequest({ phone: from, name: finalName, email: finalEmail, message: contactProfile.demoOriginalMessage || text, timestamp: ts });
-            await appendDemoRow({ name: finalName, phone: from, email: finalEmail, message: contactProfile.demoOriginalMessage || text, timestamp: ts });
+            await saveDemoRequest({ phone: from, name: finalName, email: finalEmail, message: origMsg, timestamp: ts });
+            await appendDemoRow({ name: finalName, phone: from, email: finalEmail, message: origMsg, timestamp: ts });
+            await createHumanIntervention({
+              phone: from,
+              name: finalName,
+              email: finalEmail,
+              category: 'demo',
+              reason: `Demo class requested: "${origMsg.trim().slice(0, 100)}"`,
+              lastMessage: origMsg,
+              flaggedAt: ts,
+            });
           } catch (err) {
             console.error('Failed to save demo request:', err instanceof Error ? err.message : err);
           }
@@ -1244,6 +1320,19 @@ export async function POST(req: NextRequest) {
           timestamp: Date.now(),
           ...(isMediaMsg ? { mediaType: 'image' as const, ...(mediaUrl ? { mediaUrl } : {}) } : {}),
         });
+
+        // Check for human intervention trigger
+        const trigger = detectInterventionTrigger(text, reply);
+        if (trigger.needsIntervention) {
+          const candidateName = session?.name || contactProfile?.name || explicitName || 'Student';
+          await createHumanIntervention({
+            phone: from,
+            name: candidateName && candidateName !== 'Student' ? candidateName : null,
+            category: trigger.category,
+            reason: trigger.reason,
+            lastMessage: text,
+          });
+        }
         return;
       }
 
@@ -1300,6 +1389,14 @@ Please ensure the payment was sent to our official details:
 If you have already transferred to DataCrumbs, reply here or contact us at +92 329 2020497 so our admissions team can assist!`;
             await sendWhatsAppMessage(from, reply);
             await saveMessage({ from, text: '[image]', reply, timestamp: Date.now(), mediaType: 'image' });
+            const leadName = contactProfile?.name || explicitName || null;
+            await createHumanIntervention({
+              phone: from,
+              name: leadName && leadName !== 'Student' ? leadName : null,
+              category: 'payment',
+              reason: `Payment receipt mismatch: ${verification.reason || 'amount or title mismatch'}`,
+              lastMessage: '[receipt screenshot]',
+            });
             return;
           }
 
@@ -1480,6 +1577,19 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
         from, text, reply, timestamp: Date.now(),
         ...(sentDocWithReply ? { mediaType: 'document' as const } : {}),
       });
+
+      // Check for human intervention trigger
+      const trigger = detectInterventionTrigger(text, reply);
+      if (trigger.needsIntervention) {
+        const candidateName = contactProfile?.name || explicitName || 'Student';
+        await createHumanIntervention({
+          phone: from,
+          name: candidateName && candidateName !== 'Student' ? candidateName : null,
+          category: trigger.category,
+          reason: trigger.reason,
+          lastMessage: text,
+        });
+      }
 
     } catch (err: unknown) {
       console.error('Webhook error:', err instanceof Error ? err.message : err);

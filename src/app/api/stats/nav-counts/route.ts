@@ -15,5 +15,6 @@ export async function GET() {
     chats: mongoCounts.chats,
     leads: sheetCounts.leads,
     enrollments: sheetCounts.enrollments,
+    interventions: mongoCounts.interventions,
   });
 }
