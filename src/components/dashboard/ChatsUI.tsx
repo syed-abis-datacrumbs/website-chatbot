@@ -111,6 +111,8 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
   const [toggling,    setToggling]    = useState(false);
   const [deleting,    setDeleting]    = useState<string | null>(null);
   const [search,      setSearch]      = useState('');
+  const [copiedPhone, setCopiedPhone] = useState(false);
+  const [phoneHovered, setPhoneHovered] = useState(false);
   const [showFilter,  setShowFilter]  = useState(false);
   const [dateFrom,    setDateFrom]    = useState('');
   const [dateTo,      setDateTo]      = useState('');
@@ -495,13 +497,75 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                   <div style={{ fontWeight: 700, fontSize: 15, color: isDark ? '#fff' : '#0f172a' }}>
                     {active.name || `+${active.phone}`}
                   </div>
-                  {active.name && (
-                    <span style={{
-                      fontSize: 12, fontWeight: 600, color: isDark ? '#9ca3af' : '#64748b',
-                      fontFamily: 'monospace',
-                    }}>
-                      +{active.phone}
-                    </span>
+                  {active.name ? (
+                    <div
+                      onMouseEnter={() => setPhoneHovered(true)}
+                      onMouseLeave={() => setPhoneHovered(false)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(`+${active.phone}`);
+                        setCopiedPhone(true);
+                        setTimeout(() => setCopiedPhone(false), 2000);
+                      }}
+                      title="Click to copy phone number"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        fontSize: 12, fontWeight: 600,
+                        color: copiedPhone ? (isDark ? NEON : '#16a34a') : (isDark ? '#9ca3af' : '#64748b'),
+                        fontFamily: 'monospace',
+                        background: phoneHovered || copiedPhone ? (isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0') : 'transparent',
+                        padding: '2px 7px', borderRadius: 6,
+                        cursor: 'pointer', transition: 'all 0.15s ease',
+                        border: `1px solid ${phoneHovered || copiedPhone ? (isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1') : 'transparent'}`,
+                      }}
+                    >
+                      <span>+{active.phone}</span>
+                      {copiedPhone ? (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: isDark ? NEON : '#16a34a', display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Copied!
+                        </span>
+                      ) : phoneHovered ? (
+                        <span style={{ display: 'flex', alignItems: 'center', color: isDark ? NEON : '#059669' }}>
+                          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(`+${active.phone}`);
+                        setCopiedPhone(true);
+                        setTimeout(() => setCopiedPhone(false), 2000);
+                      }}
+                      title="Click to copy phone number"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        background: 'transparent', border: 'none', cursor: 'pointer',
+                        padding: '2px 6px', borderRadius: 6,
+                        color: copiedPhone ? (isDark ? NEON : '#16a34a') : (isDark ? '#9ca3af' : '#64748b'),
+                      }}
+                    >
+                      {copiedPhone ? (
+                        <span style={{ fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Copied!
+                        </span>
+                      ) : (
+                        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                    </button>
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: isDark ? '#6b7280' : '#64748b', marginTop: 1 }}>
