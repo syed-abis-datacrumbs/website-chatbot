@@ -247,10 +247,10 @@ function isBusinessPitch(text: string): boolean {
   // Strong single signals — a student would never write these
   const strongSignals = [
     /\b(appointment|meeting)\s+(request|invitation)\b/i,
-    /\brequest(ing)?\s+a?\s*(meeting|appointment|demo|call)\b/i,
+    /\brequest(ing)?\s+a?\s*(meeting|appointment|call)\b/i,
     /\b(sales|marketing|business development|bd)\s+(executive|manager|officer|representative|rep)\b/i,
     /\b(pvt\.?\s*ltd|private limited|\(pvt\)|llc|inc\.|technologies|solutions)\b.{0,40}\b(www\.|http)/i,
-    /\bschedule a (meeting|call|demo)\b/i,
+    /\bschedule a (meeting|call)\b/i,
     /\b(partnership|collaboration|reseller|vendor|B2B)\s+(opportunity|proposal|inquiry|offer)\b/i,
     /\bwe (offer|provide|specialize in|are a)\b.{0,60}\b(company|agency|platform|solution|service)\b/i,
     /\bour (company|firm|agency|organization) (offers|provides|specializes)/i,
@@ -1470,7 +1470,7 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
-        const reply = `Great! I'll get you enrolled in the *4-Month AI & Data Science Bootcamp* 🎓\n\nPlease share your *full name* and *email address* together so we can get started!\n\nExample: _John Doe, johndoe@gmail.com_`;
+        const reply = `Great! I'll get you enrolled in the *16-Week AI & Data Science Bootcamp* 🎓\n\nPlease share your *full name* and *email address* together so we can get started!\n\nExample: _John Doe, johndoe@gmail.com_`;
         await saveEnrollmentSession(newSession);
         const sentDoc = await attachBrochureIfFirstContact(hadPriorMessages, from);
         await sendWhatsAppMessage(from, reply);
