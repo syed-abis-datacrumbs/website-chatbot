@@ -469,15 +469,19 @@ async function runEnrollmentMachine(
       if (msgType === 'image' && imageId) {
         try {
           const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
+          try {
+            const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now());
+            mediaUrl = fileId;
+          } catch (err) {
+            console.error('Drive upload failed (collecting_name):', err instanceof Error ? err.message : err);
+          }
           const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
           if (!verification.isPaymentReceipt) {
             reply = await getAIReplyWithImage(text, buffer, mimeType, history, enrollmentSystemPrompt);
             break;
           }
-          const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now());
-          mediaUrl = fileId;
         } catch (err) {
-          console.error('Drive upload failed (collecting_name):', err instanceof Error ? err.message : err);
+          console.error('Processing media failed (collecting_name):', err instanceof Error ? err.message : err);
         }
         const what = session.email ? '*full name*' : '*full name* and *email address*';
         reply = `We've received your payment screenshot! Please share your ${what} first so we can link it and get you enrolled! 😊`;
@@ -549,15 +553,19 @@ async function runEnrollmentMachine(
       if (msgType === 'image' && imageId) {
         try {
           const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
+          try {
+            const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now());
+            mediaUrl = fileId;
+          } catch (err) {
+            console.error('Drive upload failed (collecting_email):', err instanceof Error ? err.message : err);
+          }
           const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
           if (!verification.isPaymentReceipt) {
             reply = await getAIReplyWithImage(text, buffer, mimeType, history, enrollmentSystemPrompt);
             break;
           }
-          const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now());
-          mediaUrl = fileId;
         } catch (err) {
-          console.error('Drive upload failed (collecting_email):', err instanceof Error ? err.message : err);
+          console.error('Processing media failed (collecting_email):', err instanceof Error ? err.message : err);
         }
         reply = `We've received your payment screenshot! Please share your *email address* first (e.g. name@gmail.com) so we can complete your enrollment! 😊`;
         break;
@@ -601,6 +609,21 @@ async function runEnrollmentMachine(
           break;
         }
 
+        // Upload to Drive immediately so the image/receipt is always visible in dashboard
+        let fileId = '';
+        let webViewLink = '';
+        const ts = Date.now();
+        try {
+          const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
+          fileId = driveRes.fileId;
+          webViewLink = driveRes.webViewLink;
+          mediaUrl = fileId;
+          session.driveFileId = fileId;
+          session.driveFileUrl = webViewLink;
+        } catch (driveErr) {
+          console.error('Drive upload failed in awaiting_screenshot:', driveErr);
+        }
+
         const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
         const bankName = process.env.PAYMENT_BANK_NAME || 'HabibMetro Bank';
         const bankTitle = process.env.PAYMENT_BANK_TITLE || 'Data Crumbs';
@@ -637,16 +660,17 @@ If you have already transferred to DataCrumbs, reply here or contact us at +92 3
         }
 
         // It is an actual, verified payment receipt (both Name and Amount match)!
-        let fileId = '';
-        let webViewLink = '';
         let rowIndex = -1;
-        const ts = Date.now();
 
         try {
-          const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
-          fileId = driveRes.fileId;
-          webViewLink = driveRes.webViewLink;
-
+          if (!webViewLink) {
+            const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
+            fileId = driveRes.fileId;
+            webViewLink = driveRes.webViewLink;
+            mediaUrl = fileId;
+            session.driveFileId = fileId;
+            session.driveFileUrl = webViewLink;
+          }
           rowIndex = await appendEnrollmentRow({
             name: session.name || 'Student',
             email: session.email || 'unknown@datacrumbs.org',
@@ -1376,6 +1400,18 @@ export async function POST(req: NextRequest) {
             return;
           }
 
+          // Upload image/screenshot to Google Drive immediately so it is always viewable on the dashboard!
+          let mediaUrl: string | undefined;
+          let webViewLink = '';
+          const ts = Date.now();
+          try {
+            const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
+            mediaUrl = driveRes.fileId;
+            webViewLink = driveRes.webViewLink;
+          } catch (driveErr) {
+            console.error('Drive upload failed in section 2:', driveErr);
+          }
+
           const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
 
           if (!verification.isPaymentReceipt) {
@@ -1392,6 +1428,7 @@ export async function POST(req: NextRequest) {
               reply,
               timestamp: Date.now(),
               mediaType: 'image',
+              ...(mediaUrl ? { mediaUrl } : {}),
             });
             return;
           }
@@ -1414,7 +1451,14 @@ Please ensure the payment was sent to our official details:
 
 If you have already transferred to DataCrumbs, reply here or contact us at +92 329 2020497 so our admissions team can assist!`;
             await sendWhatsAppMessage(from, reply);
-            await saveMessage({ from, text: '[image]', reply, timestamp: Date.now(), mediaType: 'image' });
+            await saveMessage({
+              from,
+              text: '[image]',
+              reply,
+              timestamp: Date.now(),
+              mediaType: 'image',
+              ...(mediaUrl ? { mediaUrl } : {}),
+            });
             const leadName = contactProfile?.name || explicitName || null;
             await createHumanIntervention({
               phone: from,
@@ -1427,18 +1471,17 @@ If you have already transferred to DataCrumbs, reply here or contact us at +92 3
           }
 
           // It IS an actual payment receipt!
-          let mediaUrl: string | undefined;
-          let webViewLink = '';
           let rowIndex = -1;
-          const ts = Date.now();
 
           const studentName = contactProfile?.name || explicitName || 'Student';
           const studentEmail = contactProfile?.email || contactProfile?.discountCollectedEmail || null;
 
           try {
-            const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
-            mediaUrl = driveRes.fileId;
-            webViewLink = driveRes.webViewLink;
+            if (!webViewLink) {
+              const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
+              mediaUrl = driveRes.fileId;
+              webViewLink = driveRes.webViewLink;
+            }
 
             rowIndex = await appendEnrollmentRow({
               name: studentName,
@@ -1453,7 +1496,7 @@ If you have already transferred to DataCrumbs, reply here or contact us at +92 3
               state: 'screenshot_received',
               name: studentName,
               email: studentEmail,
-              driveFileId: driveRes.fileId,
+              driveFileId: mediaUrl || null,
               driveFileUrl: webViewLink,
               sheetRowIndex: rowIndex > 0 ? rowIndex : null,
               createdAt: ts,
