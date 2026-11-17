@@ -1139,53 +1139,64 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
       </div>
 
       {/* Custom Image Modal Popup */}
-      {previewImageId && (
-        <div
-          onClick={() => setPreviewImageId(null)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(0, 0, 0, 0.78)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 20, boxSizing: 'border-box',
-          }}
-        >
-          {/* Custom Dialog Card */}
+      {previewImageId && (() => {
+        const previewMsg = active?.messages?.find(m => m.mediaUrl === previewImageId);
+        const isPayment = previewMsg?.isPayment ?? Boolean(
+          previewMsg?.reply?.toLowerCase().includes('fee transfer') ||
+          previewMsg?.reply?.toLowerCase().includes('payment screenshot') ||
+          previewMsg?.reply?.toLowerCase().includes('receipt')
+        );
+
+        return (
           <div
-            onClick={e => e.stopPropagation()}
+            onClick={() => setPreviewImageId(null)}
             style={{
-              width: '100%', maxWidth: 680, maxHeight: '92vh',
-              background: isDark ? '#111a15' : '#ffffff',
-              border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e2e8f0'}`,
-              borderRadius: 16,
-              boxShadow: isDark ? '0 25px 60px rgba(0,0,0,0.85)' : '0 20px 45px rgba(0,0,0,0.18)',
-              display: 'flex', flexDirection: 'column',
-              overflow: 'hidden',
+              position: 'fixed', inset: 0, zIndex: 9999,
+              background: 'rgba(0, 0, 0, 0.78)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 20, boxSizing: 'border-box',
             }}
           >
-            {/* Header */}
-            <div style={{
-              padding: '14px 18px',
-              borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              background: isDark ? 'rgba(255,255,255,0.02)' : '#fafafa',
-            }}>
+            {/* Custom Dialog Card */}
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%', maxWidth: 680, maxHeight: '92vh',
+                background: isDark ? '#111a15' : '#ffffff',
+                border: `1px solid ${isDark ? 'rgba(255,255,255,0.12)' : '#e2e8f0'}`,
+                borderRadius: 16,
+                boxShadow: isDark ? '0 25px 60px rgba(0,0,0,0.85)' : '0 20px 45px rgba(0,0,0,0.18)',
+                display: 'flex', flexDirection: 'column',
+                overflow: 'hidden',
+              }}
+            >
+              {/* Header */}
+              <div style={{
+                padding: '14px 18px',
+                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                background: isDark ? 'rgba(255,255,255,0.02)' : '#fafafa',
+              }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: 10,
-                  background: isDark ? 'rgba(92,228,109,0.15)' : '#ecfdf5',
-                  border: `1px solid ${isDark ? 'rgba(92,228,109,0.3)' : '#a7f3d0'}`,
+                  background: isDark
+                    ? (isPayment ? 'rgba(92,228,109,0.15)' : 'rgba(59,130,246,0.15)')
+                    : (isPayment ? '#ecfdf5' : '#eff6ff'),
+                  border: `1px solid ${isDark ? (isPayment ? 'rgba(92,228,109,0.3)' : 'rgba(59,130,246,0.3)') : (isPayment ? '#a7f3d0' : '#bfdbfe')}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 16,
                 }}>
-                  🧾
+                  {isPayment ? '🧾' : '🖼️'}
                 </div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14, color: isDark ? '#fff' : '#0f172a' }}>
-                    Payment Screenshot
+                    {isPayment ? 'Payment Screenshot' : 'Shared Photo / Attachment'}
                   </div>
                   <div style={{ fontSize: 11, color: isDark ? '#9ca3af' : '#64748b', marginTop: 1 }}>
-                    {active ? (active.name ? `${active.name} (+${active.phone})` : `+${active.phone}`) : 'Student Receipt'}
+                    {active ? (active.name ? `${active.name} (+${active.phone})` : `+${active.phone}`) : (isPayment ? 'Student Receipt' : 'Attachment')}
                   </div>
                 </div>
               </div>
@@ -1327,7 +1338,8 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
             </div>
           </div>
         </div>
-      )}
+      );
+    })()}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>

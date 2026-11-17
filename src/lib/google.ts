@@ -66,14 +66,16 @@ export async function uploadScreenshotToDrive(
   mimeType: string,
   phone: string,
   timestamp: number,
+  isPayment: boolean = true,
 ): Promise<{ fileId: string; webViewLink: string }> {
   const drive    = google.drive({ version: 'v3', auth: auth() });
   const folderId = await getOrCreateFolder(phone);
   const ext      = mimeType.includes('png') ? 'png' : mimeType.includes('pdf') ? 'pdf' : 'jpg';
+  const prefix   = isPayment ? 'payment' : 'attachment';
 
   const file = await drive.files.create({
     requestBody: {
-      name:    `payment_${timestamp}.${ext}`,
+      name:    `${prefix}_${timestamp}.${ext}`,
       parents: [folderId],
     },
     media: { mimeType, body: Readable.from(buffer) },

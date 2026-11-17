@@ -95,6 +95,7 @@ export interface ChatMessage {
   wamId?: string;                  // Meta WhatsApp message ID
   deliveryStatus?: 'sent' | 'delivered' | 'read' | 'failed';
   deliveryError?: string;
+  isPayment?: boolean;
 }
 
 export async function saveMessage(msg: ChatMessage): Promise<void> {

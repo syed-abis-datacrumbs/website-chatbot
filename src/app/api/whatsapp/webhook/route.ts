@@ -446,9 +446,10 @@ async function runEnrollmentMachine(
   history: GeminiHistory = [],
   explicitName?: string,
   priorContactName?: string | null,
-): Promise<{ reply: string; mediaUrl?: string }> {
+): Promise<{ reply: string; mediaUrl?: string; isPayment?: boolean }> {
   let reply = '';
   let mediaUrl: string | undefined;
+  let isPayment = false;
 
   // Prefer session.name, or explicit name stated by user in chat history
   const candidateName = session.name || explicitName;
@@ -469,13 +470,14 @@ async function runEnrollmentMachine(
       if (msgType === 'image' && imageId) {
         try {
           const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
+          const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+          isPayment = Boolean(verification.isPaymentReceipt);
           try {
-            const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now());
+            const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now(), isPayment);
             mediaUrl = fileId;
           } catch (err) {
             console.error('Drive upload failed (collecting_name):', err instanceof Error ? err.message : err);
           }
-          const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
           if (!verification.isPaymentReceipt) {
             reply = await getAIReplyWithImage(text, buffer, mimeType, history, enrollmentSystemPrompt);
             break;
@@ -553,13 +555,14 @@ async function runEnrollmentMachine(
       if (msgType === 'image' && imageId) {
         try {
           const { buffer, mimeType } = await downloadWhatsAppMedia(imageId);
+          const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+          isPayment = Boolean(verification.isPaymentReceipt);
           try {
-            const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now());
+            const { fileId } = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now(), isPayment);
             mediaUrl = fileId;
           } catch (err) {
             console.error('Drive upload failed (collecting_email):', err instanceof Error ? err.message : err);
           }
-          const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
           if (!verification.isPaymentReceipt) {
             reply = await getAIReplyWithImage(text, buffer, mimeType, history, enrollmentSystemPrompt);
             break;
@@ -609,12 +612,15 @@ async function runEnrollmentMachine(
           break;
         }
 
+        const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+        isPayment = Boolean(verification.isPaymentReceipt);
+
         // Upload to Drive immediately so the image/receipt is always visible in dashboard
         let fileId = '';
         let webViewLink = '';
         const ts = Date.now();
         try {
-          const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
+          const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts, isPayment);
           fileId = driveRes.fileId;
           webViewLink = driveRes.webViewLink;
           mediaUrl = fileId;
@@ -624,7 +630,6 @@ async function runEnrollmentMachine(
           console.error('Drive upload failed in awaiting_screenshot:', driveErr);
         }
 
-        const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
         const bankName = process.env.PAYMENT_BANK_NAME || 'HabibMetro Bank';
         const bankTitle = process.env.PAYMENT_BANK_TITLE || 'Data Crumbs';
         const iban = process.env.PAYMENT_BANK_IBAN || 'PK61 MPBL 0165 0271 4028 0184';
@@ -859,7 +864,7 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
   }
 
   await saveEnrollmentSession(session);
-  return { reply, mediaUrl };
+  return { reply, mediaUrl, isPayment };
 }
 
 // ── POST: Incoming WhatsApp messages ─────────────────────────────────────────
@@ -1358,7 +1363,7 @@ export async function POST(req: NextRequest) {
           ...(m.reply ? [{ role: 'model' as const, parts: [{ text: m.reply }] }] : []),
         ]);
 
-        const { reply, mediaUrl } = await runEnrollmentMachine(
+        const { reply, mediaUrl, isPayment } = await runEnrollmentMachine(
           from, session, msgType, text, imageId, imageMime, history, explicitName, contactProfile?.name,
         );
         await sendWhatsAppMessage(from, reply);
@@ -1368,7 +1373,7 @@ export async function POST(req: NextRequest) {
           text: isMediaMsg ? '[image]' : text,
           reply,
           timestamp: Date.now(),
-          ...(isMediaMsg ? { mediaType: 'image' as const, ...(mediaUrl ? { mediaUrl } : {}) } : {}),
+          ...(isMediaMsg ? { mediaType: 'image' as const, ...(mediaUrl ? { mediaUrl, isPayment } : {}) } : {}),
         });
 
         // Check for human intervention trigger
@@ -1400,19 +1405,20 @@ export async function POST(req: NextRequest) {
             return;
           }
 
+          const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+          const isPayment = Boolean(verification.isPaymentReceipt);
+
           // Upload image/screenshot to Google Drive immediately so it is always viewable on the dashboard!
           let mediaUrl: string | undefined;
           let webViewLink = '';
           const ts = Date.now();
           try {
-            const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
+            const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts, isPayment);
             mediaUrl = driveRes.fileId;
             webViewLink = driveRes.webViewLink;
           } catch (driveErr) {
             console.error('Drive upload failed in section 2:', driveErr);
           }
-
-          const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
 
           if (!verification.isPaymentReceipt) {
             // Non-payment image sent by a lead without active session (e.g. syllabus, website, error, question)
@@ -1428,7 +1434,7 @@ export async function POST(req: NextRequest) {
               reply,
               timestamp: Date.now(),
               mediaType: 'image',
-              ...(mediaUrl ? { mediaUrl } : {}),
+              ...(mediaUrl ? { mediaUrl, isPayment } : {}),
             });
             return;
           }
@@ -1457,7 +1463,7 @@ If you have already transferred to DataCrumbs, reply here or contact us at +92 3
               reply,
               timestamp: Date.now(),
               mediaType: 'image',
-              ...(mediaUrl ? { mediaUrl } : {}),
+              ...(mediaUrl ? { mediaUrl, isPayment } : {}),
             });
             const leadName = contactProfile?.name || explicitName || null;
             await createHumanIntervention({
@@ -1526,7 +1532,7 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
             reply,
             timestamp: Date.now(),
             mediaType: 'image',
-            ...(mediaUrl ? { mediaUrl } : {}),
+            ...(mediaUrl ? { mediaUrl, isPayment } : {}),
           });
         }
         return;
