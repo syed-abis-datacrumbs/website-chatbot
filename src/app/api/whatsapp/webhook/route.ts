@@ -929,8 +929,14 @@ export async function POST(req: NextRequest) {
       const incomingWamId = message.id as string | undefined;
 
       // ── Handle message deletion ("Delete for everyone") ──
-      if (msgType === 'revoke') {
-        const originalWamId = message.revoke?.original_message_id as string | undefined;
+      const isRevoke =
+        msgType === 'revoke' ||
+        Boolean(message.revoke) ||
+        (msgType === 'protocol' && (message.protocol?.type === 'revoke' || message.protocol?.type === 0)) ||
+        message.is_deleted === true;
+
+      if (isRevoke) {
+        const originalWamId = (message.revoke?.original_message_id || message.protocol?.key?.id || message.id) as string | undefined;
         console.log(`[webhook] Received message REVOKE (delete for everyone) for ${from}, target ID: ${originalWamId}`);
         await markMessageDeleted(originalWamId, from);
         return;
@@ -947,6 +953,12 @@ export async function POST(req: NextRequest) {
       const imageMime = message.image?.mime_type ?? message.document?.mime_type ?? 'image/jpeg';
       const audioId = message.audio?.id;
       const audioMime = message.audio?.mime_type ?? 'audio/ogg';
+
+      // ── Guard: If incoming message has NO text, NO image, and NO audio, NEVER reply or advance enrollment! ──
+      if (!text.trim() && !imageId && !audioId) {
+        console.log(`[webhook] Ignoring empty/non-content event of type '${msgType}' from ${from}`);
+        return;
+      }
 
       const [session, contactProfile, hadPriorMessages] = await Promise.all([
         getActiveEnrollmentSession(from),
@@ -1469,6 +1481,7 @@ export async function POST(req: NextRequest) {
           text: isMediaMsg ? '[image]' : text,
           reply,
           timestamp: Date.now(),
+          ...(incomingWamId ? { wamId: incomingWamId } : {}),
           ...(isMediaMsg ? { mediaType: 'image' as const, ...(mediaUrl ? { mediaUrl, isPayment } : {}) } : {}),
         });
 
@@ -1746,6 +1759,7 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
       await sendWhatsAppMessage(from, reply);
       await saveMessage({
         from, text, reply, timestamp: Date.now(),
+        ...(incomingWamId ? { wamId: incomingWamId } : {}),
         ...(sentDocWithReply ? { mediaType: 'document' as const } : {}),
       });
 

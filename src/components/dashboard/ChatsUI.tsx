@@ -202,8 +202,8 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
         const data = await res.json() as { messages: ChatMessage[]; names?: Record<string, string> };
         setContacts(prev => {
           const updated = groupByPhone(data.messages, data.names, prev);
-          const prevSig = prev.map(c => `${c.phone}:${c.messages.length}:${c.lastMessage?.deliveryStatus || ''}:${c.lastMessage?.timestamp || 0}`).join('|');
-          const newSig  = updated.map(c => `${c.phone}:${c.messages.length}:${c.lastMessage?.deliveryStatus || ''}:${c.lastMessage?.timestamp || 0}`).join('|');
+          const prevSig = prev.map(c => `${c.phone}:${c.messages.length}:${c.lastMessage?.isDeleted ? 'del' : ''}:${c.lastMessage?.deliveryStatus || ''}:${c.lastMessage?.timestamp || 0}:${c.lastMessage?.text || ''}`).join('|');
+          const newSig  = updated.map(c => `${c.phone}:${c.messages.length}:${c.lastMessage?.isDeleted ? 'del' : ''}:${c.lastMessage?.deliveryStatus || ''}:${c.lastMessage?.timestamp || 0}:${c.lastMessage?.text || ''}`).join('|');
           return prevSig !== newSig ? updated : prev;
         });
       } catch { /* ignore network errors */ }
