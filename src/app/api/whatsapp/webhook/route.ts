@@ -5,7 +5,7 @@ import {
   sendWhatsAppMessage, sendWhatsAppDocument,
   downloadWhatsAppMedia,
 } from '@/lib/whatsapp';
-import { getAIReply, getAIReplyWithImage, verifyPaymentReceiptWithAI } from '@/lib/gemini';
+import { getAIReply, getAIReplyWithImage, verifyPaymentReceiptWithAI, classifyStudentBackgroundWithAI } from '@/lib/gemini';
 import { CORE_SYSTEM_PROMPT, WELCOME_GREETING } from '@/lib/knowledge';
 import {
   saveMessage, getRecentMessagesByPhone, hasPriorMessages, claimNewLead,
@@ -54,7 +54,7 @@ Fee: *${process.env.PAYMENT_FEE ?? 'Rs. 7,500/month'}*
 Once you've paid, please send a *screenshot* here and we'll verify it and get you enrolled! ✅`;
 }
 
-function buildBootcampPaymentMsg(background?: string) {
+function buildBootcampPaymentMsg(background?: string, isTechOverride?: boolean) {
   const bankName = process.env.PAYMENT_BANK_NAME || 'HabibMetro Bank';
   const bankTitle = process.env.PAYMENT_BANK_TITLE || 'Data Crumbs';
   const iban = process.env.PAYMENT_BANK_IBAN || 'PK61 MPBL 0165 0271 4028 0184';
@@ -63,7 +63,10 @@ function buildBootcampPaymentMsg(background?: string) {
   const walletTitle = process.env.PAYMENT_WALLET_TITLE || 'Abis Hussain Syed';
 
   const bg = (background || '').toLowerCase();
-  const isTechOrCS = /\b(cs|computer\s*science|software|developer|dev|coding|programmer|it|information\s*technology|swe|backend|frontend|fullstack|web\s*dev)\b/i.test(bg);
+  const isTechOrCS = typeof isTechOverride === 'boolean'
+    ? isTechOverride
+    : /\b(cs|computer\s*science|software|developer|dev|coding|programmer|swe|backend|frontend|fullstack|web\s*dev)\b/i.test(bg) ||
+      /\binformation\s*technology\b/i.test(bg);
 
   let opening: string;
   if (isTechOrCS) {
@@ -157,24 +160,6 @@ function isPureGreetingOrYes(text: string): boolean {
   return /^(g|jee|ji|han|haan|haanji|hanji|yes|yeah|yep|yup|ok|okay|k|sahi|acha|achha|theek|thik|hmm|hmmm|wsalam|walikum\s*salam|walaikum\s*assalam|wa\s*alaikum\s*assalam|salam|assalam|aoa|hi|hello|hey)$/i.test(t);
 }
 
-function looksLikeBackgroundOrJob(text: string): boolean {
-  const t = text.toLowerCase().trim();
-  if (t.length < 2) return false;
-
-  // Degrees, levels & educational terms
-  const eduKeywords = /\b(cs|bs|bcs|bse|ms|se|it|bsc|msc|btech|mtech|bba|mba|b\.?ed|m\.?ed|bed|med|acma|ca|acca|cfa|fsc|ics|fa|i\.?com|icom|b\.?com|bcom|m\.?com|mcom|llb|llm|mbbs|bds|dvm|pharm-?d|matric|alevel|o-level|a-level|inter|intermediate|phd|bachelor|bachelors|master|masters|degree|graduate|graduated|graduation|undergrad|undergraduate|student|matriculation|dae|diploma)\b/i;
-
-  // Academic fields & domains
-  const fieldKeywords = /\b(computer\s*science|software|engineering|engineer|electrical|mechanical|civil|chemical|telecom|biomedical|mechatronics|accounting|finance|commerce|business|economics|marketing|humanities|arts|science|education|teaching|pre-medical|pre-engineering|medical|pharmacy|mbbs|dvm|agriculture|data|statistics|ai|artificial\s*intelligence|machine\s*learning|web\s*dev)\b/i;
-
-  // Job roles, titles & employment status
-  const jobKeywords = /\b(developer|dev|programmer|coder|job|working|work|employed|employee|intern|internship|freelancer|freelance|designer|ui\/ux|graphic|manager|officer|consultant|analyst|accountant|teacher|teaching|educator|lecturer|professor|doctor|banker|sales|marketer|executive|specialist|lead|founder|store|shop|self-employed|unemployed|fresh|experience|experienced)\b/i;
-
-  // Explicit statements: "I am a...", "I did...", "I have done...", "working on...", "studying..."
-  const phraseKeywords = /\b(?:i am|i'm|i did|i have done|completed|passed|studying|studied|currently in|my background is|field is|degree in|graduated in|working as|work as|working on|work on|background in)\b/i;
-
-  return eduKeywords.test(t) || fieldKeywords.test(t) || jobKeywords.test(t) || phraseKeywords.test(t);
-}
 
 function isIslamicGreeting(text: string): boolean {
   const t = text.trim().toLowerCase();
@@ -980,10 +965,11 @@ export async function POST(req: NextRequest) {
         }
 
         // 2. Only proceed to payment if the user ACTUALLY shares an educational background or job role!
-        const hasBackground = looksLikeBackgroundOrJob(text);
+        // We use Gemini AI to intelligently distinguish background answers from questions/inquiries.
+        const analysis = await classifyStudentBackgroundWithAI(text);
 
-        if (!hasBackground) {
-          // They asked a question OR wrote a general/unrelated remark (e.g. "Starting date", "who are you", etc.)
+        if (!analysis.hasBackground) {
+          // They asked a question OR wrote a general/unrelated remark (e.g. "when is it launching?", "what is the fee?", etc.)
           // Answer their query with AI and gently re-ask for background
           const history = recentMsgs.map(m => ({
             role: (m.text && m.text !== '[image]' ? 'user' : 'model') as 'user' | 'model',
@@ -997,7 +983,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 3. User genuinely provided their background!
-        const background = text.trim();
+        const background = analysis.detectedBackground || text.trim();
 
         // 1. Save student's background and advance state
         await saveContactProfile({
@@ -1022,7 +1008,7 @@ export async function POST(req: NextRequest) {
         });
 
         // 3. Build and send Message 2 (Class schedule + Payment details)
-        const msg2 = buildBootcampPaymentMsg(background);
+        const msg2 = buildBootcampPaymentMsg(background, analysis.isTech);
         await sendWhatsAppMessage(from, msg2);
 
         // 4. Save to MongoDB (visible in agent.datacrumbs.org/chats)

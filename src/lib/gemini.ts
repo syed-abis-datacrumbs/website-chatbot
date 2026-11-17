@@ -237,3 +237,79 @@ export async function getAIReplyWithImage(
 
   return `Thanks for sharing this image! If you have any questions about our bootcamp, curriculum, or enrollment, please let me know.`;
 }
+
+// ── Student Background Intent Classification ────────────────────────────────
+export interface BackgroundClassification {
+  hasBackground: boolean;
+  isTech: boolean;
+  detectedBackground?: string;
+}
+
+/**
+ * Uses Gemini LLM to accurately determine whether a student's WhatsApp reply
+ * actually answers: "What is your educational background or current job role?".
+ * Distinguishes genuine background statements (BSCS, Mechanical Eng, Teacher, Sales, FSc)
+ * from unrelated inquiries ("when is it launching?", "what is the fee?", etc.) or general chatter.
+ */
+export async function classifyStudentBackgroundWithAI(
+  userText: string
+): Promise<BackgroundClassification> {
+  const primaryModelName = process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview';
+
+  const prompt = `You are an admissions intent classifier for an educational institute (DataCrumbs).
+A newly registered student was asked:
+"What is your educational background or current job role?"
+
+The student replied:
+"""${userText}"""
+
+Task:
+Evaluate whether the student is genuinely answering the question by providing their educational background, degree, field of study, current job role, or professional status.
+
+CRITICAL RULES:
+1. If the user asks ANY question (e.g., "when is it launching?", "what is the fee?", "timing kya hai?", "is it online?", "who are you?", "admissions kab tak hain?"), or writes an unrelated remark/filler, hasBackground MUST BE false.
+2. If the user states what they studied, their degree, qualification, or what they do for work (e.g., "BSCS", "Mechanical Engineering", "Teacher", "FSc pre medical", "working in sales", "developer", "student", "freelancer", "I am in marketing", "Intermediate", "pharmacist", "fresh graduate"), hasBackground MUST BE true.
+3. If hasBackground is true, evaluate whether their background is in Computer Science, Software Engineering, Programming, IT, or Web/AI Tech (isTech: true), or non-CS/non-tech fields like business, medical, other engineering, humanities, sales, fresh intermediate (isTech: false).
+
+Respond with valid JSON only in this exact format:
+{
+  "hasBackground": boolean,
+  "isTech": boolean,
+  "detectedBackground": "concise description of their background, or empty string"
+}`;
+
+  const tryWithModel = async (modelName: string): Promise<BackgroundClassification | null> => {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: { responseMimeType: 'application/json' },
+      });
+      const result = await model.generateContent(prompt);
+      const raw = result.response.text().trim();
+      const cleanJson = raw.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      return {
+        hasBackground: Boolean(parsed.hasBackground),
+        isTech: Boolean(parsed.isTech),
+        detectedBackground: typeof parsed.detectedBackground === 'string' ? parsed.detectedBackground.trim() : '',
+      };
+    } catch (err: any) {
+      console.warn(`[gemini:${modelName}] classifyStudentBackgroundWithAI error:`, err?.message || err);
+      return null;
+    }
+  };
+
+  const res = await tryWithModel(primaryModelName);
+  if (res !== null) return res;
+
+  if (primaryModelName !== 'gemini-2.5-pro') {
+    const fallbackRes = await tryWithModel('gemini-2.5-pro');
+    if (fallbackRes !== null) return fallbackRes;
+  }
+
+  return {
+    hasBackground: false,
+    isTech: false,
+    detectedBackground: '',
+  };
+}
