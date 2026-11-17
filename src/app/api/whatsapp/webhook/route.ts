@@ -1047,8 +1047,13 @@ export async function POST(req: NextRequest) {
           offerReply = `No problem at all! 😊 Feel free to ask me anything else — curriculum, schedule, or enrollment.`;
           await saveContactProfile({ phone: from, discountOfferPending: false });
         } else {
-          // Ambiguous / a question — answer briefly, then repeat the offer (never demand contact info here)
-          offerReply = `Our management reviews each request individually and may be able to offer you a special discount. 😊\n\nWould you like me to forward your request to them? (yes/no)`;
+          // User asked a question or sent a non-yes/no message — answer them with Gemini AI and gently re-offer
+          const history = recentMsgs.map(m => ({
+            role: (m.text && m.text !== '[image]' ? 'user' : 'model') as 'user' | 'model',
+            parts: [{ text: m.text || m.reply }],
+          }));
+          const aiAnswer = await getAIReply(text, history, CORE_SYSTEM_PROMPT);
+          offerReply = `${aiAnswer}\n\nWould you still like me to forward your discount request to our management team? (yes/no)`;
         }
 
         await sendWhatsAppMessage(from, offerReply);
@@ -1105,11 +1110,24 @@ export async function POST(req: NextRequest) {
             discountReply = `Sure, take your time! Share your email whenever you're ready 😊`;
           } else if (mentionsFriend(text)) {
             discountReply = `That's great! If your friend also joins, you both get our 20% Group Discount 🎉\n\nWhenever you're ready, please share your email address so we can forward your details to management!`;
+          } else if (isQuestion(text)) {
+            const history = recentMsgs.map(m => ({
+              role: (m.text && m.text !== '[image]' ? 'user' : 'model') as 'user' | 'model',
+              parts: [{ text: m.text || m.reply }],
+            }));
+            const aiAnswer = await getAIReply(text, history, CORE_SYSTEM_PROMPT);
+            discountReply = `${aiAnswer}\n\nCould you also share your *email address* so we can forward your details to management? 😊`;
           } else {
             discountReply = `Thanks *${finalName}*! 😊 Could you also share your *email address*?\n\nExample: _johndoe@gmail.com_`;
           }
         } else {
-          discountReply = `Please share your *full name* and *email address* so we can forward your request to the management team.\n\nExample: _John Doe, johndoe@gmail.com_`;
+          // Neither name nor email provided — user asked a question or sent a remark
+          const history = recentMsgs.map(m => ({
+            role: (m.text && m.text !== '[image]' ? 'user' : 'model') as 'user' | 'model',
+            parts: [{ text: m.text || m.reply }],
+          }));
+          const aiAnswer = await getAIReply(text, history, CORE_SYSTEM_PROMPT);
+          discountReply = `${aiAnswer}\n\nWhenever you're ready, please share your *full name* and *email address* so we can forward your discount request to management! 😊`;
         }
 
         await sendWhatsAppMessage(from, discountReply);
@@ -1165,11 +1183,24 @@ export async function POST(req: NextRequest) {
             demoReply = `Sure, take your time! Share your email whenever you're ready 😊`;
           } else if (mentionsFriend(text)) {
             demoReply = `Awesome! If your friend also joins, you both get our 20% Group Discount 🎉\n\nWhenever you're ready, please share your email address so I can share your demo request!`;
+          } else if (isQuestion(text)) {
+            const history = recentMsgs.map(m => ({
+              role: (m.text && m.text !== '[image]' ? 'user' : 'model') as 'user' | 'model',
+              parts: [{ text: m.text || m.reply }],
+            }));
+            const aiAnswer = await getAIReply(text, history, CORE_SYSTEM_PROMPT);
+            demoReply = `${aiAnswer}\n\nCould you also share your *email address* so we can schedule your demo session? 😊`;
           } else {
             demoReply = `Thanks *${finalName}*! 😊 Could you also share your *email address*?\n\nExample: _johndoe@gmail.com_`;
           }
         } else {
-          demoReply = `Please share your *full name* and *email address* so I can share this with our management team.\n\nExample: _John Doe, johndoe@gmail.com_`;
+          // Neither name nor email provided — user asked a question or sent a remark
+          const history = recentMsgs.map(m => ({
+            role: (m.text && m.text !== '[image]' ? 'user' : 'model') as 'user' | 'model',
+            parts: [{ text: m.text || m.reply }],
+          }));
+          const aiAnswer = await getAIReply(text, history, CORE_SYSTEM_PROMPT);
+          demoReply = `${aiAnswer}\n\nWhenever you're ready, please share your *full name* and *email address* so I can share this with our management team! 😊`;
         }
 
         await sendWhatsAppMessage(from, demoReply);
