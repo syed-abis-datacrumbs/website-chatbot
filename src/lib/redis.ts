@@ -134,34 +134,6 @@ export async function updateMessageDeliveryStatus(
 
 export async function getMessages(): Promise<ChatMessage[]> {
   const db = await getDb();
-  try {
-    // Fix timing message: it was successfully delivered
-    await db.collection('wa_messages').updateOne(
-      {
-        from: { $in: ['923172548069', '+923172548069'] },
-        reply: { $regex: /live classes are held/i },
-      },
-      {
-        $set: { deliveryStatus: 'delivered', deliveryError: null },
-      }
-    );
-    // Cold welcome message was the one blocked by Meta billing
-    await db.collection('wa_messages').updateOne(
-      {
-        from: { $in: ['923172548069', '+923172548069'] },
-        reply: { $regex: /16-Week AI & Data Science Bootcamp/i },
-      },
-      {
-        $set: {
-          deliveryStatus: 'failed',
-          deliveryError: 'Business eligibility payment issue: Message failed to send because your WhatsApp Business account has unsettled payments. Visit Meta Billing Hub.',
-        },
-      }
-    );
-  } catch {
-    // ignore
-  }
-
   const docs = await db
     .collection<ChatMessage>('wa_messages')
     .find({})
