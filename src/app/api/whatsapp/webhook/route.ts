@@ -624,8 +624,10 @@ async function runEnrollmentMachine(
           fileId = driveRes.fileId;
           webViewLink = driveRes.webViewLink;
           mediaUrl = fileId;
-          session.driveFileId = fileId;
-          session.driveFileUrl = webViewLink;
+          if (isPayment) {
+            session.driveFileId = fileId;
+            session.driveFileUrl = webViewLink;
+          }
         } catch (driveErr) {
           console.error('Drive upload failed in awaiting_screenshot:', driveErr);
         }
@@ -745,6 +747,20 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
         }
 
         const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+        isPayment = Boolean(verification.isPaymentReceipt);
+
+        // Upload to Drive immediately so all media (receipts and shared attachments) are visible on dashboard
+        let fileId = '';
+        let webViewLink = '';
+        const ts = Date.now();
+        try {
+          const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts, isPayment);
+          fileId = driveRes.fileId;
+          webViewLink = driveRes.webViewLink;
+          mediaUrl = fileId;
+        } catch (err: unknown) {
+          console.error('Failed to upload media on Drive (screenshot_received):', err instanceof Error ? err.message : err);
+        }
 
         if (!verification.isPaymentReceipt) {
           // User sent a non-payment image while waiting for verification (like the syllabus screenshot)
@@ -758,21 +774,9 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
         }
 
         // It is an updated payment receipt!
-        let fileId = '';
-        let webViewLink = '';
-        try {
-          const ts = Date.now();
-          const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
-          fileId = driveRes.fileId;
-          webViewLink = driveRes.webViewLink;
-        } catch (err: unknown) {
-          console.error('Failed to update screenshot on Drive:', err instanceof Error ? err.message : err);
-        }
-
         if (fileId) {
           session.driveFileId = fileId;
           session.driveFileUrl = webViewLink;
-          mediaUrl = fileId;
         }
 
         reply = `✅ Thanks! We've received your updated payment receipt. Our admissions team will review and verify it shortly.`;
@@ -800,6 +804,20 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
         }
 
         const verification = await verifyPaymentReceiptWithAI(buffer, mimeType);
+        isPayment = Boolean(verification.isPaymentReceipt);
+
+        // Upload to Drive immediately so all media (receipts and shared attachments) are visible on dashboard
+        let fileId = '';
+        let webViewLink = '';
+        const ts = Date.now();
+        try {
+          const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts, isPayment);
+          fileId = driveRes.fileId;
+          webViewLink = driveRes.webViewLink;
+          mediaUrl = fileId;
+        } catch (err: unknown) {
+          console.error('Failed to upload media on Drive (approved/rejected):', err instanceof Error ? err.message : err);
+        }
 
         if (!verification.isPaymentReceipt) {
           // Student is approved or rejected and sent a screenshot (e.g. LMS issue, question, syllabus)
@@ -812,14 +830,12 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
           break;
         }
 
-        let fileId = '';
-        let webViewLink = '';
-        try {
-          const ts = Date.now();
-          const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, ts);
-          fileId = driveRes.fileId;
-          webViewLink = driveRes.webViewLink;
+        if (fileId) {
+          session.driveFileId = fileId;
+          session.driveFileUrl = webViewLink;
+        }
 
+        try {
           const rowIndex = await appendEnrollmentRow({
             name: session.name || 'Student',
             email: session.email || 'unknown@datacrumbs.org',
@@ -830,12 +846,6 @@ Thank you${nameGreeting}! We're excited to have you join DataCrumbs 🚀`;
           if (rowIndex > 0) session.sheetRowIndex = rowIndex;
         } catch (err) {
           console.error('Drive upload failed (re-upload):', err instanceof Error ? err.message : err);
-        }
-
-        if (fileId) {
-          session.driveFileId = fileId;
-          session.driveFileUrl = webViewLink;
-          mediaUrl = fileId;
         }
         session.state = 'screenshot_received';
 
