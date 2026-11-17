@@ -11,11 +11,12 @@ const GLASS  = 'linear-gradient(180deg, rgba(20,29,25,0.8) 0%, rgba(13,20,17,0.9
 const BORDER = '#202d26';
 
 // Quick-reply buttons above the admin input — click to send instantly, no typing needed
-const QUICK_ACTIONS: { label: string; message?: string; sendBrochure?: boolean }[] = [
+const QUICK_ACTIONS: { label: string; message?: string; sendBrochure?: boolean; sendTemplate?: boolean }[] = [
+  { label: 'Re-send Template 🚀', sendTemplate: true },
   { label: 'Greetings', message: WELCOME_GREETING },
   { label: 'Send Brochure', sendBrochure: true, message: 'Here is our complete Data Science & AI Bootcamp brochure! It covers the full curriculum, pricing, internship details, and instructor profiles. Let me know if you have any questions 😊' },
   { label: 'Curriculum', message: `Here is our complete 16-Week AI & Agentic Curriculum:\n\n• *Weeks 01-02:* AI Web Development (Antigravity & Lovable, React, Next.js & Vercel)\n• *Weeks 03-04:* AI Backends & Cloud Databases (Schema Design, Auth & Supabase RLS)\n• *Weeks 05-06:* GenAI & n8n Automation (Gemini, OpenAI, DeepSeek, RAG & LangChain)\n• *Weeks 07-08:* Core LLMs & Autonomous Agents (eCommerce Sales & HR Hiring Agents)\n• *Weeks 09-10:* Agentic Tools & MCP (Model Context Protocol & Custom MCP Servers)\n• *Weeks 11-12:* Voice AI & Multi-Agent Systems (Whisper AI & Supervisor Teams)\n• *Weeks 13-14:* Freelancing & Client Acquisition (Fiverr, Upwork & Retainer Outreach)\n• *Weeks 15-16:* Portfolio & Career Launch (15+ AI Projects + Guaranteed 1-Month Internship)` },
-  { label: 'Timings', message: `Our live interactive classes are held on Zoom:\n\n📅 *Days:* Every Saturday & Sunday\n⏰ *Timings:* 4:00 PM – 5:30 PM (PKT)\n🚀 *Start Date:* Classes start this Sunday, 15 November 2026!\n\nAll sessions are recorded with lifetime access on our *Cognos AI LMS*, along with crisp ~15-minute modular lessons if you ever miss a live class!` },
+  { label: 'Timings', message: `Our live interactive classes are held on Zoom:\n\n📅 *Days:* Every Saturday & Sunday\n⏰ *Timings:* 4:00 PM – 5:30 PM (PKT)\n🚀 *Start Date:* Classes start Sunday, 6 December 2026!\n\nAll sessions are recorded with lifetime access on our *Cognos AI LMS*, along with crisp ~15-minute modular lessons if you ever miss a live class!` },
   { label: 'Duration', message: `Our AI & Data Science Bootcamp is *4 Months (16 Weeks)*.\n\nUpon completion, you'll also get a *guaranteed 1-2 month industry internship*! 🚀` },
 ];
 
@@ -293,7 +294,36 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
     finally { setSending(false); }
   }
 
+  async function handleSendTemplate() {
+    if (!selected || sending) return;
+    const activeContact = contacts.find(c => c.phone === selected);
+    setSending(true);
+    try {
+      await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: selected,
+          isBootcampLead: true,
+          name: activeContact?.name || undefined,
+        }),
+      });
+      // Refresh messages immediately to reflect the new template dispatch
+      const msgRes = await fetch('/api/messages');
+      const data = await msgRes.json() as { messages: ChatMessage[]; names?: Record<string, string> };
+      setContacts(prev => groupByPhone(data.messages, data.names, prev));
+    } catch (err) {
+      console.error('Failed to dispatch template:', err);
+    } finally {
+      setSending(false);
+    }
+  }
+
   function handleQuickAction(action: typeof QUICK_ACTIONS[number]) {
+    if (action.sendTemplate) {
+      handleSendTemplate();
+      return;
+    }
     if (!action.message) return;
     setInput(action.message);
     setAttachBrochure(Boolean(action.sendBrochure));
@@ -817,16 +847,40 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                                   fontSize: 11,
                                   lineHeight: '1.4',
                                   display: 'flex',
-                                  alignItems: 'flex-start',
-                                  gap: 6,
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: 8,
                                 }}>
-                                  <span style={{ fontSize: 13, flexShrink: 0, marginTop: -1 }}>⚠️</span>
-                                  <div>
-                                    <div style={{ fontWeight: 700 }}>Meta Delivery Failed</div>
-                                    <div style={{ fontSize: 10.5, marginTop: 1, opacity: 0.9 }}>
-                                      {msg.deliveryError || 'Message failed to deliver. Check Meta WhatsApp Billing.'}
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                                    <span style={{ fontSize: 13, flexShrink: 0, marginTop: -1 }}>⚠️</span>
+                                    <div>
+                                      <div style={{ fontWeight: 700 }}>Meta Delivery Failed</div>
+                                      <div style={{ fontSize: 10.5, marginTop: 1, opacity: 0.9 }}>
+                                        {msg.deliveryError || 'Message failed to deliver. Check Meta WhatsApp Billing.'}
+                                      </div>
                                     </div>
                                   </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendTemplate()}
+                                    disabled={sending}
+                                    style={{
+                                      flexShrink: 0,
+                                      padding: '4px 10px',
+                                      fontSize: 10.5,
+                                      fontWeight: 700,
+                                      borderRadius: 6,
+                                      border: 'none',
+                                      background: isDark ? '#ef4444' : '#dc2626',
+                                      color: '#ffffff',
+                                      cursor: sending ? 'not-allowed' : 'pointer',
+                                      whiteSpace: 'nowrap',
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                                    }}
+                                    title="Re-send approved Meta Welcome Template (bypasses 24-hour window)"
+                                  >
+                                    {sending ? 'Sending...' : '↻ Retry Template'}
+                                  </button>
                                 </div>
                               )}
                               <div style={{
@@ -889,18 +943,26 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                   <button
                     key={action.label}
                     onClick={() => handleQuickAction(action)}
-                    title={`Load "${action.label}" template into message box`}
+                    disabled={sending}
+                    title={action.sendTemplate ? "Send approved Meta Welcome Template (bypasses 24-hour window)" : `Load "${action.label}" template into message box`}
                     style={{
-                      fontSize: 11.5, fontWeight: 500,
+                      fontSize: 11.5,
+                      fontWeight: action.sendTemplate ? 700 : 500,
                       padding: '5px 12px', borderRadius: 20,
-                      background: isDark ? 'rgba(92,228,109,0.08)' : '#ecfdf5',
-                      border: `1px solid ${isDark ? 'rgba(92,228,109,0.25)' : '#a7f3d0'}`,
-                      color: isDark ? NEON : '#059669',
-                      cursor: 'pointer',
+                      background: action.sendTemplate
+                        ? (isDark ? 'rgba(59,130,246,0.18)' : '#eff6ff')
+                        : (isDark ? 'rgba(92,228,109,0.08)' : '#ecfdf5'),
+                      border: `1px solid ${action.sendTemplate
+                        ? (isDark ? 'rgba(59,130,246,0.45)' : '#bfdbfe')
+                        : (isDark ? 'rgba(92,228,109,0.25)' : '#a7f3d0')}`,
+                      color: action.sendTemplate
+                        ? (isDark ? '#60a5fa' : '#2563eb')
+                        : (isDark ? NEON : '#059669'),
+                      cursor: sending ? 'not-allowed' : 'pointer',
                       transition: 'all 0.15s',
                     }}
                   >
-                    {action.label}
+                    {action.sendTemplate && sending ? 'Sending...' : action.label}
                   </button>
                 ))}
               </div>

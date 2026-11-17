@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendWhatsAppMessage, sendWhatsAppDocument, sendWhatsAppTemplate } from '@/lib/whatsapp';
-import { saveMessage, saveContactProfile } from '@/lib/redis';
+import { saveMessage, saveContactProfile, getContactProfile } from '@/lib/redis';
 
 function normalizePhoneNumber(raw: string): string {
   let cleaned = (raw || '').replace(/\D/g, '');
@@ -28,7 +28,13 @@ export async function POST(req: NextRequest) {
 
   // ── Automated AI Bootcamp Funnel: Message 1 ─────────────────────────────────
   if (isBootcampLead) {
-    const studentName = (name || '').trim() || 'there';
+    let studentName = (name || '').trim();
+    if (!studentName || studentName === 'there') {
+      const profile = await getContactProfile(recipientPhone).catch(() => null);
+      if (profile?.name) studentName = profile.name;
+    }
+    if (!studentName) studentName = 'there';
+
     const studentEmail = (email || '').trim() || undefined;
     const studentGoal = (goal || '').trim() || 'Freelancing & Career Switch';
 
