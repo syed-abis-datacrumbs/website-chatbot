@@ -704,8 +704,9 @@ If you have already transferred to DataCrumbs, reply here or contact us at +92 3
         const validName = (session.name && looksLikeName(session.name)) ? session.name : null;
         const nameGreeting = validName ? `, *${validName}*` : '';
         const lmsEmailText = session.email ? ` using your registered email (*${session.email}*)` : '';
+        const amountText = verification.amount ? ` for Rs ${verification.amount.toLocaleString()}` : '';
 
-        reply = `✅ We've received your payment screenshot for Rs 7,500! Our admissions team is reviewing the payment details.
+        reply = `✅ We've received your payment screenshot${amountText}! Our admissions team is reviewing the payment details.
 
 Once verified by our team, we will confirm your enrollment and send your orientation details right here.
 
@@ -1624,8 +1625,9 @@ If you have already transferred to DataCrumbs, reply here or contact us at +92 3
           const validName = (studentName && looksLikeName(studentName)) ? studentName : null;
           const nameGreeting = validName ? `, *${validName}*` : '';
           const lmsEmailText = studentEmail ? ` using your registered email (*${studentEmail}*)` : '';
+          const amountText = verification.amount ? ` for Rs ${verification.amount.toLocaleString()}` : '';
 
-          const reply = `✅ We've received your payment screenshot for Rs 7,500! Our admissions team is reviewing the payment details.
+          const reply = `✅ We've received your payment screenshot${amountText}! Our admissions team is reviewing the payment details.
 
 Once verified by our team, we will confirm your enrollment and send your orientation details right here.
 

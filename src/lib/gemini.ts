@@ -106,17 +106,18 @@ STEP 2: If isPaymentReceipt is true, check against Official DataCrumbs Payment C
 1. Destination / Beneficiary Name:
    - Bank Destination: "${bankName}" with Account Title "${bankTitle}" (or variations like "DataCrumbs")
    - OR Wallet / Mobile Account: "${walletNumber}" with Account Title "${walletTitle}" (or "Syed Abis Hussain" / "Abis Hussain")
-2. Expected Fee Amount:
-   - Exactly 7,499 PKR or 7,500 PKR (Both 7,499 and 7,500 are standard fee amounts and completely valid).
-3. Status:
+2. Transaction Status:
    - Must be a completed / successful transaction with a visible reference/transaction ID (not pending, scheduled, or failed).
+3. Transferred Amount:
+   - Read and extract the transferred amount number (e.g. 5000, 7500, 6000, etc.). Any positive amount is accepted (students frequently receive approved discounts, scholarships, or promotional offers).
 
 CRITICAL RULE FOR "isValid":
-Set "isValid" to true ONLY IF all 3 conditions are met:
+Set "isValid" to true if:
 (1) It is an actual payment receipt,
 (2) Beneficiary name matches "${bankTitle}" or "${walletTitle}", and
-(3) Fee amount matches 7,499 or 7,500 PKR.
-If the name or amount does NOT match, set "isValid" to false and state the exact mismatch in "reason" (e.g. "Amount is 1,000 instead of 7,500" or "Account title does not match Data Crumbs / Abis Hussain Syed").
+(3) Transaction status is completed/successful (not failed or cancelled).
+Do NOT reject based on the amount—students can pay discounted fees.
+If the beneficiary name does NOT match our official accounts, or the transaction is failed, set "isValid" to false and explain the issue in "reason".
 
 Return ONLY a valid JSON object with the following fields (no markdown formatting, no backticks, just raw JSON):
 {
