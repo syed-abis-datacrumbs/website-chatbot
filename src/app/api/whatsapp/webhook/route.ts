@@ -211,12 +211,12 @@ function needsAffordabilityHelp(text: string): boolean {
     /financial (help|support|issue|problem|hardship|constraint)/i.test(t) ||
     /\bfee (bari|barhi|zyada|ziada|kam|reduce)\b/i.test(t) ||
     /\bkoi discount\b/i.test(t) ||
-    /discount (chahiye|dena|do|mil|de)/i.test(t) ||
-    /i (want|need|require|wanna) (a |some )?discount/i.test(t) ||
+    /discount (chahiye|dena|do|mil|de|milega|hoga|h)/i.test(t) ||
+    /\b(offer|get|is there|have|any|want|need|give|require|wanna)\b.{0,15}\bdiscount\b/i.test(t) ||
+    /\bdiscount\b.{0,15}\b(hai|h|milega|offer|available|possible|chahiye|please)\b/i.test(t) ||
+    /\b(student|personal|group|any)\s+discount\b/i.test(t) ||
+    /\bdiscount\b/i.test(t) ||
     /give.{0,10}discount/i.test(t) ||
-    /\bstudent (discount|rate|concession|deal|package)\b/i.test(t) ||
-    /\bpersonal discount\b/i.test(t) ||
-    /any (other |special |more )?discount/i.test(t) ||
     /out of (my )?budget/i.test(t) ||
     /\bbudget\b.{0,20}\b(low|tight|less|kam|short)\b/i.test(t) ||
     // Counter-offer / negotiation — "can only pay 4k", "pay 4000 only", "I'll only give 5k"
@@ -952,74 +952,6 @@ export async function POST(req: NextRequest) {
       // Conversation context — fetched once and reused by every branch below
       const recentMsgs = msgType === 'text' ? await getRecentMessagesByPhone(from, 10) : [];
 
-      // ── 0a2. Automated AI Bootcamp Funnel: Message 2 ─────────────────────
-      if (msgType === 'text' && contactProfile?.bootcampLeadPending) {
-        // 1. If student replied with a pure greeting or simple acknowledgement ("Walikum Salam", "G", "ok", "haan", "ji")
-        if (isPureGreetingOrYes(text)) {
-          const reply = isIslamicGreeting(text)
-            ? `Wa Alaikum Assalam! 😊 Quick question: What is your educational background or current job role so we can ensure the batch is the right fit for you?`
-            : `Great! Could you share what your educational background or current job role is so we can confirm the batch fit?`;
-          await sendWhatsAppMessage(from, reply);
-          await saveMessage({ from, text, reply, timestamp: Date.now() });
-          return;
-        }
-
-        // 2. Only proceed to payment if the user ACTUALLY shares an educational background or job role!
-        // We use Gemini AI to intelligently distinguish background answers from questions/inquiries.
-        const analysis = await classifyStudentBackgroundWithAI(text);
-
-        if (!analysis.hasBackground) {
-          // They asked a question OR wrote a general/unrelated remark (e.g. "when is it launching?", "what is the fee?", etc.)
-          // Answer their query with AI and gently re-ask for background
-          const history = recentMsgs.map(m => ({
-            role: (m.text && m.text !== '[image]' ? 'user' : 'model') as 'user' | 'model',
-            parts: [{ text: m.text || m.reply }],
-          }));
-          const aiAnswer = await getAIReply(text, history, CORE_SYSTEM_PROMPT);
-          const reply = `${aiAnswer}\n\nBy the way, what is your educational background or current job role so we can confirm your eligibility?`;
-          await sendWhatsAppMessage(from, reply);
-          await saveMessage({ from, text, reply, timestamp: Date.now() });
-          return;
-        }
-
-        // 3. User genuinely provided their background!
-        const background = analysis.detectedBackground || text.trim();
-
-        // 1. Save student's background and advance state
-        await saveContactProfile({
-          phone: from,
-          bootcampLeadPending: false,
-          bootcampBackground: background,
-        });
-
-        // 2. Set up enrollment session awaiting screenshot
-        const now = Date.now();
-        const studentEmail = contactProfile?.email || contactProfile?.discountCollectedEmail || null;
-        await saveEnrollmentSession({
-          phone: from,
-          state: 'awaiting_screenshot',
-          name: contactProfile?.name || explicitName || 'Student',
-          email: studentEmail,
-          driveFileId: null,
-          driveFileUrl: null,
-          sheetRowIndex: null,
-          createdAt: now,
-          updatedAt: now,
-        });
-
-        // 3. Build and send Message 2 (Class schedule + Payment details)
-        const msg2 = buildBootcampPaymentMsg(background, analysis.isTech);
-        await sendWhatsAppMessage(from, msg2);
-
-        // 4. Save to MongoDB (visible in agent.datacrumbs.org/chats)
-        await saveMessage({
-          from,
-          text,
-          reply: msg2,
-          timestamp: Date.now(),
-        });
-        return;
-      }
 
       // ── 0b2. Discount offer confirmation ─────────────────────────────────
       // We've asked "should I forward this to management?" — wait for a clear
@@ -1299,6 +1231,75 @@ export async function POST(req: NextRequest) {
         await saveMessage({
           from, text, reply: demoReply, timestamp: Date.now(),
           ...(sentDoc2 ? { mediaType: 'document' as const } : {}),
+        });
+        return;
+      }
+
+      // ── 0a2. Automated AI Bootcamp Funnel: Message 2 ─────────────────────
+      if (msgType === 'text' && contactProfile?.bootcampLeadPending) {
+        // 1. If student replied with a pure greeting or simple acknowledgement ("Walikum Salam", "G", "ok", "haan", "ji")
+        if (isPureGreetingOrYes(text)) {
+          const reply = isIslamicGreeting(text)
+            ? `Wa Alaikum Assalam! 😊 Quick question: What is your educational background or current job role so we can ensure the batch is the right fit for you?`
+            : `Great! Could you share what your educational background or current job role is so we can confirm the batch fit?`;
+          await sendWhatsAppMessage(from, reply);
+          await saveMessage({ from, text, reply, timestamp: Date.now() });
+          return;
+        }
+
+        // 2. Only proceed to payment if the user ACTUALLY shares an educational background or job role!
+        // We use Gemini AI to intelligently distinguish background answers from questions/inquiries.
+        const analysis = await classifyStudentBackgroundWithAI(text);
+
+        if (!analysis.hasBackground) {
+          // They asked a question OR wrote a general/unrelated remark (e.g. "when is it launching?", "what is the fee?", etc.)
+          // Answer their query with AI and gently re-ask for background
+          const history = recentMsgs.map(m => ({
+            role: (m.text && m.text !== '[image]' ? 'user' : 'model') as 'user' | 'model',
+            parts: [{ text: m.text || m.reply }],
+          }));
+          const aiAnswer = await getAIReply(text, history, CORE_SYSTEM_PROMPT);
+          const reply = `${aiAnswer}\n\nBy the way, what is your educational background or current job role so we can confirm your eligibility?`;
+          await sendWhatsAppMessage(from, reply);
+          await saveMessage({ from, text, reply, timestamp: Date.now() });
+          return;
+        }
+
+        // 3. User genuinely provided their background!
+        const background = analysis.detectedBackground || text.trim();
+
+        // 1. Save student's background and advance state
+        await saveContactProfile({
+          phone: from,
+          bootcampLeadPending: false,
+          bootcampBackground: background,
+        });
+
+        // 2. Set up enrollment session awaiting screenshot
+        const now = Date.now();
+        const studentEmail = contactProfile?.email || contactProfile?.discountCollectedEmail || null;
+        await saveEnrollmentSession({
+          phone: from,
+          state: 'awaiting_screenshot',
+          name: contactProfile?.name || explicitName || 'Student',
+          email: studentEmail,
+          driveFileId: null,
+          driveFileUrl: null,
+          sheetRowIndex: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        // 3. Build and send Message 2 (Class schedule + Payment details)
+        const msg2 = buildBootcampPaymentMsg(background, analysis.isTech);
+        await sendWhatsAppMessage(from, msg2);
+
+        // 4. Save to MongoDB (visible in agent.datacrumbs.org/chats)
+        await saveMessage({
+          from,
+          text,
+          reply: msg2,
+          timestamp: Date.now(),
         });
         return;
       }
