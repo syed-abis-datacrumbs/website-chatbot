@@ -486,7 +486,7 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                       fontSize: 11.5, color: isDark ? '#6b7280' : '#64748b', marginTop: 2,
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     }}>
-                      {c.lastMessage.text === '[image]' ? '📷 Photo' : (c.lastMessage.reply || c.lastMessage.text)}
+                      {c.lastMessage.isDeleted ? '🚫 This message was deleted' : c.lastMessage.mediaType === 'audio' ? '🎤 Voice message' : c.lastMessage.text === '[image]' ? '📷 Photo' : (c.lastMessage.reply || c.lastMessage.text)}
                     </div>
                   </div>
                 </button>
@@ -757,6 +757,20 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                                     View
                                   </div>
                                 </button>
+                              ) : msg.isDeleted ? (
+                                <div style={{
+                                  display: 'flex', alignItems: 'center', gap: 6,
+                                  fontStyle: 'italic',
+                                  color: isDark ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.85)',
+                                }}>
+                                  <span>🚫</span>
+                                  <span>This message was deleted</span>
+                                </div>
+                              ) : msg.mediaType === 'audio' || msg.text === '🎤 Voice message' ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                  <span style={{ fontSize: 16 }}>🎤</span>
+                                  <span style={{ fontWeight: 600 }}>Voice message</span>
+                                </div>
                               ) : msg.mediaType === 'image' ? (
                                 <span style={{ fontSize: 20 }}>📷</span>
                               ) : msg.text === '[image]' ? (

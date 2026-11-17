@@ -238,6 +238,54 @@ export async function getAIReplyWithImage(
   return `Thanks for sharing this image! If you have any questions about our bootcamp, curriculum, or enrollment, please let me know.`;
 }
 
+export async function getAIReplyWithAudio(
+  audioBuffer: Buffer,
+  mimeType: string = 'audio/ogg',
+  history: HistoryMessage[] = [],
+  systemPromptOverride?: string | null
+): Promise<string> {
+  const systemInstruction = systemPromptOverride ?? CORE_SYSTEM_PROMPT;
+  const primaryModelName = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+
+  // Normalize mime type for Gemini (audio/ogg, audio/mp3, audio/wav, audio/aac)
+  let cleanMime = mimeType.split(';')[0].trim();
+  if (!cleanMime || cleanMime === 'audio/opus') cleanMime = 'audio/ogg';
+
+  const audioPart = {
+    inlineData: {
+      data: audioBuffer.toString('base64'),
+      mimeType: cleanMime,
+    },
+  };
+
+  const promptText = `Listen carefully to this audio voice message from a prospective or enrolled student.
+Understand what they are asking or saying (they may speak in English, Urdu, or Roman Urdu).
+Respond to them naturally, warmly, concisely, and helpfully in plain text according to DataCrumbs' official bootcamp information.`;
+
+  const tryWithModel = async (modelName: string): Promise<string | null> => {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction,
+      });
+
+      const result = await model.generateContent([promptText, audioPart]);
+      return result.response.text();
+    } catch (err: any) {
+      console.warn(`[gemini-audio:${modelName}] getAIReplyWithAudio error:`, err?.message || err);
+      return null;
+    }
+  };
+
+  const res = await tryWithModel('gemini-2.5-pro');
+  if (res !== null) return res;
+
+  const fallback = await tryWithModel(primaryModelName);
+  if (fallback !== null) return fallback;
+
+  return `Thanks for your voice message! 🙏 I received your audio, but had a slight issue listening to it. Could you please send a quick text message or rephrase your question?`;
+}
+
 // ── Student Background Intent Classification ────────────────────────────────
 export interface BackgroundClassification {
   hasBackground: boolean;

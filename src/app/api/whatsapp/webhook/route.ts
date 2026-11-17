@@ -5,7 +5,7 @@ import {
   sendWhatsAppMessage, sendWhatsAppDocument,
   downloadWhatsAppMedia,
 } from '@/lib/whatsapp';
-import { getAIReply, getAIReplyWithImage, verifyPaymentReceiptWithAI, classifyStudentBackgroundWithAI } from '@/lib/gemini';
+import { getAIReply, getAIReplyWithImage, getAIReplyWithAudio, verifyPaymentReceiptWithAI, classifyStudentBackgroundWithAI } from '@/lib/gemini';
 import { CORE_SYSTEM_PROMPT, WELCOME_GREETING } from '@/lib/knowledge';
 import {
   saveMessage, getRecentMessagesByPhone, hasPriorMessages, claimNewLead,
@@ -13,7 +13,7 @@ import {
   getContactProfile, saveContactProfile,
   saveDiscountRequest, updateDiscountRequestComment,
   saveDemoRequest, createHumanIntervention,
-  updateMessageDeliveryStatus,
+  updateMessageDeliveryStatus, markMessageDeleted,
   type EnrollmentSession,
 } from '@/lib/redis';
 import {
@@ -926,16 +926,102 @@ export async function POST(req: NextRequest) {
 
       const from = message.from as string;
       const msgType = message.type as string;
+      const incomingWamId = message.id as string | undefined;
+
+      // ── Handle message deletion ("Delete for everyone") ──
+      if (msgType === 'revoke') {
+        const originalWamId = message.revoke?.original_message_id as string | undefined;
+        console.log(`[webhook] Received message REVOKE (delete for everyone) for ${from}, target ID: ${originalWamId}`);
+        await markMessageDeleted(originalWamId, from);
+        return;
+      }
+
+      // ── Ignore WhatsApp reactions (emoji add/remove) to prevent unintended replies ──
+      if (msgType === 'reaction') {
+        return;
+      }
+
       const text = msgType === 'text' ? (message.text?.body as string ?? '') : (message.image?.caption ?? message.document?.caption ?? '');
       // Accept any document as a potential payment screenshot — don't restrict by MIME/filename
       const imageId = message.image?.id ?? message.document?.id;
       const imageMime = message.image?.mime_type ?? message.document?.mime_type ?? 'image/jpeg';
+      const audioId = message.audio?.id;
+      const audioMime = message.audio?.mime_type ?? 'audio/ogg';
 
       const [session, contactProfile, hadPriorMessages] = await Promise.all([
         getActiveEnrollmentSession(from),
         getContactProfile(from),
         hasPriorMessages(from),
       ]);
+
+      // ── Handle Voice Messages (Audio) ──
+      if (msgType === 'audio' && audioId) {
+        if (contactProfile?.botDisabled) {
+          await saveMessage({
+            from,
+            text: '🎤 Voice message',
+            reply: '',
+            timestamp: Date.now(),
+            mediaType: 'audio',
+            ...(incomingWamId ? { wamId: incomingWamId } : {}),
+          });
+          return;
+        }
+
+        try {
+          const { buffer, mimeType } = await downloadWhatsAppMedia(audioId);
+
+          // Guard against excessively long audio files (> 8MB = ~4-5 mins)
+          if (buffer.length > 8 * 1024 * 1024) {
+            const reply = `Thanks for your voice note! 🙏 It's a bit long. Could you please send a shorter voice note (under 1 minute) or a quick text so we can assist you right away? 😊`;
+            await sendWhatsAppMessage(from, reply);
+            await saveMessage({
+              from,
+              text: '🎤 Voice message',
+              reply,
+              timestamp: Date.now(),
+              mediaType: 'audio',
+              ...(incomingWamId ? { wamId: incomingWamId } : {}),
+            });
+            return;
+          }
+
+          const msgsForHist = await getRecentMessagesByPhone(from, 10);
+          const history = msgsForHist.flatMap(m => [
+            ...(m.text && m.text !== '[image]' && m.text !== '🎤 Voice message' ? [{ role: 'user' as const, parts: [{ text: m.text }] }] : []),
+            ...(m.reply ? [{ role: 'model' as const, parts: [{ text: m.reply }] }] : []),
+          ]);
+
+          const enrollmentPrompt = session
+            ? `${CORE_SYSTEM_PROMPT}\n\nThe student is in enrollment (state: ${session.state}). Answer their questions directly, concisely, and warmly.`
+            : CORE_SYSTEM_PROMPT;
+
+          const reply = await getAIReplyWithAudio(buffer, mimeType, history, enrollmentPrompt);
+          await sendWhatsAppMessage(from, reply);
+          await saveMessage({
+            from,
+            text: '🎤 Voice message',
+            reply,
+            timestamp: Date.now(),
+            mediaType: 'audio',
+            ...(incomingWamId ? { wamId: incomingWamId } : {}),
+          });
+          return;
+        } catch (audioErr) {
+          console.error('[webhook/audio] Failed to process voice note:', audioErr);
+          const reply = `Thanks for your voice note! 🙏 We had a slight technical issue loading the audio. Could you please type your message, or contact our team directly at *+92 329 2020497*?`;
+          await sendWhatsAppMessage(from, reply);
+          await saveMessage({
+            from,
+            text: '🎤 Voice message',
+            reply,
+            timestamp: Date.now(),
+            mediaType: 'audio',
+            ...(incomingWamId ? { wamId: incomingWamId } : {}),
+          });
+          return;
+        }
+      }
 
       /// Check if user explicitly stated their name in this message ("My name is John")
       const newlyStatedName = msgType === 'text' ? extractExplicitNameFromText(text) : null;

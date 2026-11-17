@@ -91,16 +91,45 @@ export interface ChatMessage {
   reply: string;
   timestamp: number;
   mediaUrl?: string;               // Drive file ID (payment screenshot)
-  mediaType?: 'image' | 'document'; // 'document' = bot sent brochure
+  mediaType?: 'image' | 'document' | 'audio'; // 'document' = bot sent brochure, 'audio' = voice message
   wamId?: string;                  // Meta WhatsApp message ID
   deliveryStatus?: 'sent' | 'delivered' | 'read' | 'failed';
   deliveryError?: string;
   isPayment?: boolean;
+  isDeleted?: boolean;             // Customer deleted message for everyone
 }
 
 export async function saveMessage(msg: ChatMessage): Promise<void> {
   const db = await getDb();
   await db.collection('wa_messages').insertOne(msg);
+}
+
+export async function markMessageDeleted(wamId?: string, phone?: string): Promise<boolean> {
+  const db = await getDb();
+  if (wamId) {
+    const res = await db.collection('wa_messages').updateOne(
+      { wamId },
+      { $set: { isDeleted: true, text: '🚫 This message was deleted' } }
+    );
+    if (res.matchedCount > 0) return true;
+  }
+
+  // Fallback: match most recent message from this phone if wamId was not found
+  if (phone) {
+    const clean = phone.replace(/\D/g, '');
+    const doc = await db.collection('wa_messages').findOne(
+      { from: { $in: [clean, `+${clean}`, phone] }, isDeleted: { $ne: true } },
+      { sort: { timestamp: -1 } }
+    );
+    if (doc) {
+      await db.collection('wa_messages').updateOne(
+        { _id: doc._id },
+        { $set: { isDeleted: true, text: '🚫 This message was deleted' } }
+      );
+      return true;
+    }
+  }
+  return false;
 }
 
 export async function updateMessageDeliveryStatus(
