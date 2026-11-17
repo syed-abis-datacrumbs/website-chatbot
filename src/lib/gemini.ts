@@ -278,10 +278,10 @@ Respond to them naturally, warmly, concisely, and helpfully in plain text accord
     }
   };
 
-  const res = await tryWithModel('gemini-2.5-pro');
+  const res = await tryWithModel('gemini-3.8-flash');
   if (res !== null) return res;
 
-  const fallback = await tryWithModel(primaryModelName);
+  const fallback = await tryWithModel('gemini-3.1-pro-preview');
   if (fallback !== null) return fallback;
 
   return `Thanks for your voice message! 🙏 I received your audio, but had a slight issue listening to it. Could you please send a quick text message or rephrase your question?`;

@@ -969,20 +969,30 @@ export async function POST(req: NextRequest) {
 
       // ── Handle Voice Messages (Audio) ──
       if (msgType === 'audio' && audioId) {
-        if (contactProfile?.botDisabled) {
-          await saveMessage({
-            from,
-            text: '🎤 Voice message',
-            reply: '',
-            timestamp: Date.now(),
-            mediaType: 'audio',
-            ...(incomingWamId ? { wamId: incomingWamId } : {}),
-          });
-          return;
-        }
-
         try {
           const { buffer, mimeType } = await downloadWhatsAppMedia(audioId);
+
+          // Upload audio to Google Drive so admin can play it back in dashboard
+          let audioMediaUrl: string | undefined;
+          try {
+            const driveRes = await uploadScreenshotToDrive(buffer, mimeType, from, Date.now(), false);
+            audioMediaUrl = driveRes.fileId;
+          } catch (driveErr) {
+            console.error('[webhook/audio] Drive upload failed:', driveErr);
+          }
+
+          if (contactProfile?.botDisabled) {
+            await saveMessage({
+              from,
+              text: '🎤 Voice message',
+              reply: '',
+              timestamp: Date.now(),
+              mediaType: 'audio',
+              ...(audioMediaUrl ? { mediaUrl: audioMediaUrl } : {}),
+              ...(incomingWamId ? { wamId: incomingWamId } : {}),
+            });
+            return;
+          }
 
           // Guard against excessively long audio files (> 8MB = ~4-5 mins)
           if (buffer.length > 8 * 1024 * 1024) {
@@ -994,6 +1004,7 @@ export async function POST(req: NextRequest) {
               reply,
               timestamp: Date.now(),
               mediaType: 'audio',
+              ...(audioMediaUrl ? { mediaUrl: audioMediaUrl } : {}),
               ...(incomingWamId ? { wamId: incomingWamId } : {}),
             });
             return;
@@ -1017,6 +1028,7 @@ export async function POST(req: NextRequest) {
             reply,
             timestamp: Date.now(),
             mediaType: 'audio',
+            ...(audioMediaUrl ? { mediaUrl: audioMediaUrl } : {}),
             ...(incomingWamId ? { wamId: incomingWamId } : {}),
           });
           return;

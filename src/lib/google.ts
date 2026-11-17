@@ -70,8 +70,9 @@ export async function uploadScreenshotToDrive(
 ): Promise<{ fileId: string; webViewLink: string }> {
   const drive    = google.drive({ version: 'v3', auth: auth() });
   const folderId = await getOrCreateFolder(phone);
-  const ext      = mimeType.includes('png') ? 'png' : mimeType.includes('pdf') ? 'pdf' : 'jpg';
-  const prefix   = isPayment ? 'payment' : 'attachment';
+  const isAudio  = mimeType.includes('audio') || mimeType.includes('ogg') || mimeType.includes('opus') || mimeType.includes('wav') || mimeType.includes('mp3');
+  const ext      = isAudio ? 'ogg' : mimeType.includes('png') ? 'png' : mimeType.includes('pdf') ? 'pdf' : 'jpg';
+  const prefix   = isPayment ? 'payment' : isAudio ? 'voice' : 'attachment';
 
   const file = await drive.files.create({
     requestBody: {

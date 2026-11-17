@@ -767,9 +767,25 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                                   <span>This message was deleted</span>
                                 </div>
                               ) : msg.mediaType === 'audio' || msg.text === '🎤 Voice message' ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                                  <span style={{ fontSize: 16 }}>🎤</span>
-                                  <span style={{ fontWeight: 600 }}>Voice message</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 210 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                    <span style={{ fontSize: 16 }}>🎤</span>
+                                    <span style={{ fontWeight: 600 }}>Voice message</span>
+                                  </div>
+                                  {msg.mediaUrl ? (
+                                    <audio
+                                      controls
+                                      preload="none"
+                                      src={`/api/media/${msg.mediaUrl}`}
+                                      style={{
+                                        height: 32,
+                                        width: '100%',
+                                        maxWidth: 240,
+                                        borderRadius: 8,
+                                        outline: 'none',
+                                      }}
+                                    />
+                                  ) : null}
                                 </div>
                               ) : msg.mediaType === 'image' ? (
                                 <span style={{ fontSize: 20 }}>📷</span>
