@@ -96,6 +96,9 @@ export interface DailyReportData {
     demos: number;
     confirmations: number;
     followUps: number;
+    followUpsText: string;
+    previousFollowUps: Array<{ name: string; phone: string; date: string }>;
+    todayFollowUps: Array<{ name: string; phone: string; date: string }>;
     paymentPending: number;
     enrolledToday: number;
     totalEnrolled: number;
@@ -135,6 +138,9 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
     demos: 0,
     confirmations: 0,
     followUps: 0,
+    followUpsText: '0',
+    previousFollowUps: [] as Array<{ name: string; phone: string; date: string }>,
+    todayFollowUps: [] as Array<{ name: string; phone: string; date: string }>,
     paymentPending: 0,
     enrolledToday: 0,
     totalEnrolled: 0,
@@ -144,6 +150,11 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
 
   let campaignStartTime = windowStart - 14 * 24 * 60 * 60 * 1000; // fallback: 14 days ago
   let campaignStartDateStr = '';
+
+  const PKT_OFFSET_MS = 5 * 60 * 60 * 1000;
+  const startOfTodayPKT = Math.floor((now + PKT_OFFSET_MS) / 86400000) * 86400000 - PKT_OFFSET_MS;
+  const previousFollowUps: Array<{ name: string; phone: string; date: string }> = [];
+  const todayFollowUps: Array<{ name: string; phone: string; date: string }> = [];
 
   try {
     const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
@@ -181,6 +192,9 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
       const timeStr = (row[1] || '').toString().trim();
       const status = (row[5] || '').toString().trim().toLowerCase();
       const confirmationCol = (row[13] || '').toString().trim().toLowerCase();
+      const leadName = (row[2] || '').toString().trim() || 'Student';
+      const leadPhone = (row[4] || '').toString().trim();
+      const dateColN = (row[13] || '').toString().trim();
 
       const leadDate = parsePakistanDate(dateStr, timeStr);
       if (leadDate) {
@@ -215,6 +229,17 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
         salesStats.confirmations++;
       } else if (status.includes('follow up') || status.includes('awaiting') || status.includes('call later')) {
         salesStats.followUps++;
+
+        const actionDate = dateColN ? parsePakistanDate(dateColN) : leadDate;
+        const item = { name: leadName, phone: leadPhone, date: dateColN || dateStr };
+
+        if (actionDate && actionDate.getTime() < startOfTodayPKT) {
+          // Scheduled date was in past and status is still Follow Up -> Unconducted / Remaining
+          previousFollowUps.push(item);
+        } else {
+          // Scheduled date is today -> Today's Follow-up
+          todayFollowUps.push(item);
+        }
       } else if (status.includes('connected') || status.includes('call received')) {
         salesStats.connected++;
       } else if (status.includes('no answer') || status.includes('not received') || status.includes('not reachable') || status.includes('unreachable')) {
@@ -230,6 +255,31 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
         day: 'numeric',
       });
     }
+
+    // Build the formatted follow-ups text block
+    const followUpsLines: string[] = [`${salesStats.followUps}`];
+    if (previousFollowUps.length > 0) {
+      followUpsLines.push('  🔴 *Remaining (Previous):*');
+      for (const f of previousFollowUps.slice(0, 6)) {
+        followUpsLines.push(`  - ${f.name} (${f.phone})`);
+      }
+      if (previousFollowUps.length > 6) {
+        followUpsLines.push(`  ... +${previousFollowUps.length - 6} more`);
+      }
+    }
+    if (todayFollowUps.length > 0) {
+      followUpsLines.push("  🟢 *Today's Follow-ups:*");
+      for (const f of todayFollowUps.slice(0, 6)) {
+        followUpsLines.push(`  - ${f.name} (${f.phone})`);
+      }
+      if (todayFollowUps.length > 6) {
+        followUpsLines.push(`  ... +${todayFollowUps.length - 6} more`);
+      }
+    }
+
+    salesStats.followUpsText = followUpsLines.join('\n');
+    salesStats.previousFollowUps = previousFollowUps;
+    salesStats.todayFollowUps = todayFollowUps;
   } catch (sheetErr) {
     console.error('[dailyReport] Error reading Google Sheets:', sheetErr);
   }
@@ -377,7 +427,7 @@ export function formatDailyReportMessage(data: DailyReportData): string {
 • Total Confirmations: *${salesCrm.confirmations}*
 • Total Demo: *${salesCrm.demos}*
 • Total Not Reachable: *${salesCrm.noAnswer}*
-• Active Follow-ups: *${salesCrm.followUps}*
+• Active Follow-ups: *${salesCrm.followUpsText}*
 • Total Lost: *${salesCrm.totalLost}*
 
 ━━━━━━━━━━━━━━━━━━━━
@@ -411,7 +461,7 @@ export async function sendDailyReport(
       String(data.salesCrm.confirmations),         // {{10}}
       String(data.salesCrm.demos),                 // {{11}}
       String(data.salesCrm.noAnswer),              // {{12}}
-      String(data.salesCrm.followUps),             // {{13}}
+      data.salesCrm.followUpsText,                 // {{13}}
       String(data.salesCrm.totalLost),             // {{14}}
     ];
 

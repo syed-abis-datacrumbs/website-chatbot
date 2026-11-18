@@ -145,11 +145,18 @@ async function main() {
   let totalLost = 0;
 
   let earliestLeadMs = Infinity;
+  const PKT_OFFSET_MS = 5 * 60 * 60 * 1000;
+  const startOfTodayPKT = Math.floor((now + PKT_OFFSET_MS) / 86400000) * 86400000 - PKT_OFFSET_MS;
+  const previousFollowUps = [];
+  const todayFollowUps = [];
 
   for (const r of rows) {
     const leadDate = parsePakistanDate(r[0], r[1]);
     const status = (r[5] || '').toString().trim().toLowerCase();
     const confCol = (r[13] || '').toString().trim().toLowerCase();
+    const leadName = (r[2] || '').toString().trim() || 'Student';
+    const leadPhone = (r[4] || '').toString().trim();
+    const dateColN = (r[13] || '').toString().trim();
 
     if (leadDate) {
       const leadMs = leadDate.getTime();
@@ -180,12 +187,45 @@ async function main() {
       confirmations++;
     } else if (status.includes('follow up') || status.includes('awaiting') || status.includes('call later')) {
       followUps++;
+
+      const actionDate = dateColN ? parsePakistanDate(dateColN) : leadDate;
+      const item = { name: leadName, phone: leadPhone, date: dateColN || (r[0] || '') };
+
+      if (actionDate && actionDate.getTime() < startOfTodayPKT) {
+        // Scheduled in past, still Follow Up -> Unconducted / Remaining
+        previousFollowUps.push(item);
+      } else {
+        // Scheduled today -> Today's Follow-up
+        todayFollowUps.push(item);
+      }
     } else if (status.includes('connected') || status.includes('call received')) {
       connected++;
     } else if (status.includes('no answer') || status.includes('not received') || status.includes('not reachable') || status.includes('unreachable')) {
       noAnswer++;
     }
   }
+
+  // Format follow-ups text block
+  const followUpsLines = [`${followUps}`];
+  if (previousFollowUps.length > 0) {
+    followUpsLines.push('  🔴 *Remaining (Previous):*');
+    for (const f of previousFollowUps.slice(0, 6)) {
+      followUpsLines.push(`  - ${f.name} (${f.phone})`);
+    }
+    if (previousFollowUps.length > 6) {
+      followUpsLines.push(`  ... +${previousFollowUps.length - 6} more`);
+    }
+  }
+  if (todayFollowUps.length > 0) {
+    followUpsLines.push("  🟢 *Today's Follow-ups:*");
+    for (const f of todayFollowUps.slice(0, 6)) {
+      followUpsLines.push(`  - ${f.name} (${f.phone})`);
+    }
+    if (todayFollowUps.length > 6) {
+      followUpsLines.push(`  ... +${todayFollowUps.length - 6} more`);
+    }
+  }
+  const followUpsText = followUpsLines.join('\n');
 
   const campaignStartTime = earliestLeadMs !== Infinity ? earliestLeadMs : windowStart - 14 * 24 * 60 * 60 * 1000;
   const campaignStartDateStr = earliestLeadMs !== Infinity
@@ -288,7 +328,7 @@ async function main() {
 • Total Confirmations: *${confirmations}*
 • Total Demo: *${demos}*
 • Total Not Reachable: *${noAnswer}*
-• Active Follow-ups: *${followUps}*
+• Active Follow-ups: *${followUpsText}*
 • Total Lost: *${totalLost}*
 
 ━━━━━━━━━━━━━━━━━━━━
@@ -316,7 +356,7 @@ async function main() {
     String(confirmations),
     String(demos),
     String(noAnswer),
-    String(followUps),
+    followUpsText,
     String(totalLost),
   ];
 
