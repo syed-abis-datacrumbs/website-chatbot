@@ -51,14 +51,14 @@ export async function getAIReply(
     }
   };
 
-  // 1. Try Gemini 3.1 Pro
+  // 1. Try primary model (Gemini 3.1 Pro)
   const res = await tryWithModel(primaryModelName);
   if (res !== null) return res;
 
-  // 2. Fallback to Gemini 2.5 Pro if primary had an issue
-  if (primaryModelName !== 'gemini-2.5-pro') {
-    console.warn('[gemini] trying fallback model: gemini-2.5-pro');
-    const fallbackRes = await tryWithModel('gemini-2.5-pro');
+  // 2. Fallback to Gemini 3.8 Flash if primary had an issue
+  if (primaryModelName !== 'gemini-3.8-flash') {
+    console.warn('[gemini] trying fallback model: gemini-3.8-flash');
+    const fallbackRes = await tryWithModel('gemini-3.8-flash');
     if (fallbackRes !== null) return fallbackRes;
   }
 
@@ -169,8 +169,8 @@ Return ONLY a valid JSON object with the following fields (no markdown formattin
   if (res !== null) return res;
 
   // 2. Try fallback model if primary fails
-  if (primaryModelName !== 'gemini-2.5-pro') {
-    const fallbackRes = await tryWithModel('gemini-2.5-pro');
+  if (primaryModelName !== 'gemini-3.8-flash') {
+    const fallbackRes = await tryWithModel('gemini-3.8-flash');
     if (fallbackRes !== null) return fallbackRes;
   }
 
@@ -231,8 +231,8 @@ export async function getAIReplyWithImage(
   const res = await tryWithModel(primaryModelName);
   if (res !== null) return res;
 
-  if (primaryModelName !== 'gemini-2.5-pro') {
-    const fallback = await tryWithModel('gemini-2.5-pro');
+  if (primaryModelName !== 'gemini-3.8-flash') {
+    const fallback = await tryWithModel('gemini-3.8-flash');
     if (fallback !== null) return fallback;
   }
 
@@ -246,7 +246,7 @@ export async function getAIReplyWithAudio(
   systemPromptOverride?: string | null
 ): Promise<string> {
   const systemInstruction = systemPromptOverride ?? CORE_SYSTEM_PROMPT;
-  const primaryModelName = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+  const primaryModelName = process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview';
 
   // Normalize mime type for Gemini (audio/ogg, audio/mp3, audio/wav, audio/aac)
   let cleanMime = mimeType.split(';')[0].trim();
@@ -278,11 +278,15 @@ Respond to them naturally, warmly, concisely, and helpfully in plain text accord
     }
   };
 
-  const res = await tryWithModel('gemini-3.8-flash');
+  // 1. Primary: Gemini 3.1 Pro
+  const res = await tryWithModel(primaryModelName);
   if (res !== null) return res;
 
-  const fallback = await tryWithModel('gemini-3.1-pro-preview');
-  if (fallback !== null) return fallback;
+  // 2. Fallback: Gemini 3.8 Flash
+  if (primaryModelName !== 'gemini-3.8-flash') {
+    const fallback = await tryWithModel('gemini-3.8-flash');
+    if (fallback !== null) return fallback;
+  }
 
   return `Thanks for your voice message! 🙏 I received your audio, but had a slight issue listening to it. Could you please send a quick text message or rephrase your question?`;
 }
@@ -351,8 +355,8 @@ Respond with valid JSON only in this exact format:
   const res = await tryWithModel(primaryModelName);
   if (res !== null) return res;
 
-  if (primaryModelName !== 'gemini-2.5-pro') {
-    const fallbackRes = await tryWithModel('gemini-2.5-pro');
+  if (primaryModelName !== 'gemini-3.8-flash') {
+    const fallbackRes = await tryWithModel('gemini-3.8-flash');
     if (fallbackRes !== null) return fallbackRes;
   }
 
