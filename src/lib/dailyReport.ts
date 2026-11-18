@@ -256,24 +256,18 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
       });
     }
 
-    // Build the formatted follow-ups text block
+    // Build the formatted follow-ups text block (list ALL students, no truncating)
     const followUpsLines: string[] = [`${salesStats.followUps}`];
     if (previousFollowUps.length > 0) {
       followUpsLines.push('  🔴 *Remaining (Previous):*');
-      for (const f of previousFollowUps.slice(0, 6)) {
+      for (const f of previousFollowUps) {
         followUpsLines.push(`  - ${f.name} (${f.phone})`);
-      }
-      if (previousFollowUps.length > 6) {
-        followUpsLines.push(`  ... +${previousFollowUps.length - 6} more`);
       }
     }
     if (todayFollowUps.length > 0) {
       followUpsLines.push("  🟢 *Today's Follow-ups:*");
-      for (const f of todayFollowUps.slice(0, 6)) {
+      for (const f of todayFollowUps) {
         followUpsLines.push(`  - ${f.name} (${f.phone})`);
-      }
-      if (todayFollowUps.length > 6) {
-        followUpsLines.push(`  ... +${todayFollowUps.length - 6} more`);
       }
     }
 
