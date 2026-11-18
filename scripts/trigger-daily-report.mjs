@@ -35,7 +35,7 @@ const PRIMARY_TAB = process.env.PRIMARY_SHEET_NAME || 'Pretty';
 const CALL_LOGS_TAB = 'call-logs';
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const TARGET_PHONE = process.argv[2] || process.env.DAILY_REPORT_RECIPIENT || '923272128645';
+const TARGET_PHONE = process.argv[2] || process.env.DAILY_REPORT_RECIPIENT || '923362507273';
 
 function getPrivateKey() {
   let key = process.env.GOOGLE_PRIVATE_KEY ?? '';

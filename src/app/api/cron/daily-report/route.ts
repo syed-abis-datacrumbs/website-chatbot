@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     status: 'active',
     description: 'Daily 5:00 PM PKT report endpoint. Use ?preview=true to preview, or POST / GET with ?send=true&secret=... to dispatch.',
-    defaultRecipient: process.env.DAILY_REPORT_RECIPIENT || '923272128645',
+    defaultRecipient: process.env.DAILY_REPORT_RECIPIENT || '923362507273',
   });
 }
 
@@ -51,18 +51,24 @@ async function handleSend(req: NextRequest, secret: string | null | undefined, c
     return NextResponse.json({ error: 'Unauthorized: Valid secret required' }, { status: 401 });
   }
 
-  const recipient = customPhone || process.env.DAILY_REPORT_RECIPIENT || '923272128645';
-  const result = await sendDailyReport(recipient, hours);
+  const rawRecipients = customPhone || process.env.DAILY_REPORT_RECIPIENT || '923362507273';
+  const recipients = rawRecipients.split(',').map(p => p.trim()).filter(Boolean);
 
-  if (!result.success) {
-    return NextResponse.json({ error: result.error, success: false }, { status: 500 });
+  const results = [];
+  for (const recipient of recipients) {
+    const res = await sendDailyReport(recipient, hours);
+    results.push({ recipient, ...res });
+  }
+
+  const hasSuccess = results.some(r => r.success);
+  if (!hasSuccess) {
+    return NextResponse.json({ error: 'Failed to dispatch report', results, success: false }, { status: 500 });
   }
 
   return NextResponse.json({
     success: true,
-    sentTo: recipient,
-    wamId: result.wamId,
-    message: result.message,
-    data: result.data,
+    results,
+    primaryWamId: results[0]?.wamId,
+    data: results[0]?.data,
   });
 }

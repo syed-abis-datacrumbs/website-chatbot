@@ -385,7 +385,7 @@ export function formatDailyReportMessage(data: DailyReportData): string {
 }
 
 export async function sendDailyReport(
-  recipientPhone: string = '923272128645',
+  recipientPhone: string = '923362507273',
   customWindowHours: number = 24
 ): Promise<{ success: boolean; data: DailyReportData; message: string; wamId?: string; error?: string }> {
   try {
