@@ -124,10 +124,10 @@ export async function downloadWhatsAppMedia(
 }
 
 export async function sendWhatsAppDocument(to: string) {
-  // agent.datacrumbs.org/brochure.pdf is confirmed publicly accessible (200 OK, application/pdf, 5.7 MB).
-  // Meta's servers can reach this domain — they already hit our webhook here.
-  const brochureLink = 'https://agent.datacrumbs.org/brochure.pdf';
-  console.log('[brochure] sending link:', brochureLink);
+  // Use the dynamic brochure endpoint which serves whatever PDF is uploaded in Configuration (or fallback)
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://agent.datacrumbs.org';
+  const brochureLink = `${baseUrl}/api/brochure`;
+  console.log('[brochure] sending dynamic brochure link:', brochureLink);
   try {
     await axios.post(
       apiUrl('/messages'),

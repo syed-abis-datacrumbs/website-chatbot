@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
 
     if (wantsBrochure(message)) {
       return NextResponse.json({
-        reply: `Here's our complete bootcamp brochure!\n\n📄 [Download Brochure](/brochure.pdf)\n\nIt covers the full curriculum, pricing (Rs 7,500/month), internship details, and instructor profiles. Let me know if you have any questions!`,
+        reply: `Here's our complete bootcamp brochure!\n\n📄 [Download Brochure](/api/brochure)\n\nIt covers the full curriculum, pricing (Rs 7,500/month), internship details, and instructor profiles. Let me know if you have any questions!`,
         brochure: true,
       });
     }
