@@ -456,6 +456,27 @@ export async function sendDailyReport(
     const templateName = process.env.DAILY_REPORT_TEMPLATE || 'daily_sales_update';
     const totalInquiries = data.chatbot.demoInquiries + data.chatbot.discountInquiries;
 
+    const sanitizeParam = (val: string) =>
+      String(val ?? '')
+        .replace(/[\r\n\t]+/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+    // Parameter 13: Meta template variables cannot have newlines. Format follow-ups cleanly in 1 line.
+    let followUpsInline = `${data.salesCrm.followUps}`;
+    const todayNames = (data.salesCrm.todayFollowUps || []).map(f => f.name).filter(Boolean);
+    const missedNames = (data.salesCrm.previousFollowUps || []).map(f => f.name).filter(Boolean);
+    const upcomingNames = (data.salesCrm.upcomingFollowUps || []).map(f => f.name).filter(Boolean);
+
+    const parts: string[] = [];
+    if (todayNames.length > 0) parts.push(`Today: ${todayNames.join(', ')}`);
+    if (missedNames.length > 0) parts.push(`Missed: ${missedNames.join(', ')}`);
+    if (upcomingNames.length > 0) parts.push(`Later: ${upcomingNames.join(', ')}`);
+
+    if (parts.length > 0) {
+      followUpsInline += ` (${parts.join(' | ')})`;
+    }
+
     const templateParameters = [
       data.reportDateStr,                          // {{1}}
       data.campaignStartDateStr,                   // {{2}}
@@ -469,9 +490,9 @@ export async function sendDailyReport(
       String(data.salesCrm.confirmations),         // {{10}}
       String(data.salesCrm.demos),                 // {{11}}
       String(data.salesCrm.noAnswer),              // {{12}}
-      data.salesCrm.followUpsText,                 // {{13}}
+      followUpsInline,                             // {{13}}
       String(data.salesCrm.totalLost),             // {{14}}
-    ];
+    ].map(sanitizeParam);
 
     let wamId: string | undefined;
 

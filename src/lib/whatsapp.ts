@@ -99,7 +99,13 @@ export async function sendWhatsAppTemplate(
     (payload.template as Record<string, unknown>).components = [
       {
         type: 'body',
-        parameters: parameters.map(text => ({ type: 'text', text })),
+        parameters: parameters.map(text => ({
+          type: 'text',
+          text: String(text ?? '')
+            .replace(/[\r\n\t]+/g, ' ')
+            .replace(/\s{2,}/g, ' ')
+            .trim(),
+        })),
       },
     ];
   }
