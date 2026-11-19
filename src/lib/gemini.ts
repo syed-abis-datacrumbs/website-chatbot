@@ -366,3 +366,80 @@ Respond with valid JSON only in this exact format:
     detectedBackground: '',
   };
 }
+
+export async function summarizeLeadChatWithAI(
+  messages: { text: string; reply?: string }[],
+  profile?: { name?: string; goal?: string; background?: string } | null
+): Promise<string> {
+  const primaryModelName = process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview';
+
+  const transcript = messages
+    .filter(m => (m.text && !m.text.startsWith('[template:') && !m.text.startsWith('Template:') && m.text !== '[lead_welcome]') || m.reply?.trim())
+    .map(m => {
+      const parts = [];
+      if (m.text) parts.push(`Student: "${m.text}"`);
+      if (m.reply) parts.push(`Bot: "${m.reply}"`);
+      return parts.join('\n');
+    })
+    .filter(Boolean)
+    .join('\n');
+
+  const metaContext: string[] = [];
+  if (profile?.name) metaContext.push(`Name: ${profile.name}`);
+  if (profile?.background) metaContext.push(`Background/Degree: ${profile.background}`);
+  if (profile?.goal) metaContext.push(`Stated Goal: ${profile.goal}`);
+
+  const prompt = `You are a sales CRM assistant for DataCrumbs (an AI & Tech Institute in Pakistan).
+A prospective student had this conversation with our automated WhatsApp bot:
+
+${metaContext.length > 0 ? `Student Profile Info:\n${metaContext.join('\n')}\n` : ''}
+WhatsApp Conversation:
+"""
+${transcript}
+"""
+
+Task:
+Write a single concise sentence (under 25 words) for a sales agent about to call this student.
+It must summarize:
+1. Who the student is / background or degree (if mentioned)
+2. Their goal or main interest (e.g. Freelancing, Job, AI Agents)
+3. What they asked or their current status (e.g. asked about fees, schedule, or confirmed interest)
+
+Rules:
+- Exactly 1 sentence. Direct, informative, and professional.
+- Do NOT use meta intro phrases like "In this chat..." or "The conversation indicates...".
+- Example: "CS student aiming for freelancing with AI; inquired about course fee and weekend batch timings."
+- Plain text only, no quotes, no markdown asterisks.`;
+
+  const tryWithModel = async (modelName: string): Promise<string | null> => {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+      });
+      const result = await model.generateContent(prompt);
+      const text = result.response.text().trim();
+      return text.replace(/^["']|["']$/g, '').replace(/\n+/g, ' ');
+    } catch (err: any) {
+      console.warn(`[gemini:${modelName}] summarizeLeadChatWithAI error:`, err?.message || err);
+      return null;
+    }
+  };
+
+  const res = await tryWithModel(primaryModelName);
+  if (res) return res;
+
+  if (primaryModelName !== 'gemini-3.8-flash') {
+    const fallbackRes = await tryWithModel('gemini-3.8-flash');
+    if (fallbackRes) return fallbackRes;
+  }
+
+  // Graceful rule-based synthesis if AI is unavailable
+  const parts: string[] = [];
+  if (profile?.background) parts.push(`${profile.background} background`);
+  if (profile?.goal) parts.push(`aiming for ${profile.goal}`);
+  const lastMsg = messages.filter(m => m.text && !m.text.startsWith('[')).slice(-1)[0]?.text;
+  if (lastMsg) parts.push(`last reply: "${lastMsg}"`);
+
+  return parts.length > 0 ? parts.join('; ') : 'Student replied on WhatsApp; review chat history before calling.';
+}
+

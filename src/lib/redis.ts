@@ -208,6 +208,10 @@ export interface ContactProfile {
   // Follow-up group trigger
   followUpGroupSent?: boolean;
   followUpGroupSentAt?: number;
+  // Chat summarization cache for sales CRM
+  chatSummary?: string;
+  chatSummaryMsgCount?: number;
+  chatSummaryUpdatedAt?: number;
 }
 
 export async function getContactProfile(phone: string): Promise<ContactProfile | null> {

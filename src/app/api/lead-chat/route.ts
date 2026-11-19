@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getDb, getContactProfile, ChatMessage } from '@/lib/redis';
+import { getDb, ContactProfile, ChatMessage } from '@/lib/redis';
+import { summarizeLeadChatWithAI } from '@/lib/gemini';
 
 export async function GET(request: Request) {
   const headers = {
@@ -49,8 +50,48 @@ export async function GET(request: Request) {
       }, { headers });
     }
 
-    // Optional profile metadata
-    const profile = await getContactProfile(clean);
+    // Optional profile metadata (search all phone variants)
+    const profile = await db.collection<ContactProfile>('contact_profiles').findOne({
+      phone: { $in: variants },
+    });
+
+    // Check cached summary or generate once via AI
+    let summary = profile?.chatSummary;
+    const cachedMsgCount = profile?.chatSummaryMsgCount || 0;
+
+    if (!summary || studentReplies.length > cachedMsgCount) {
+      try {
+        summary = await summarizeLeadChatWithAI(
+          msgs.map((m: ChatMessage) => ({ text: m.text, reply: m.reply })),
+          profile ? {
+            name: profile.name,
+            goal: profile.bootcampGoal,
+            background: profile.bootcampBackground,
+          } : null
+        );
+
+        // Cache summary in MongoDB so future views load in 0ms with 0 tokens
+        await db.collection('contact_profiles').updateOne(
+          { phone: { $in: variants } },
+          {
+            $set: {
+              chatSummary: summary,
+              chatSummaryMsgCount: studentReplies.length,
+              chatSummaryUpdatedAt: Date.now(),
+            },
+            $setOnInsert: {
+              phone: clean,
+              nameAsked: false,
+              botDisabled: false,
+              updatedAt: Date.now(),
+            },
+          },
+          { upsert: true }
+        );
+      } catch (sumErr) {
+        console.warn('[lead-chat] Summarization generation error:', sumErr);
+      }
+    }
 
     const formattedMessages = msgs.map((m: ChatMessage) => ({
       text: m.text,
@@ -70,6 +111,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       hasChat: true,
+      summary: summary || null,
       totalMessages: msgs.length,
       studentRepliesCount: studentReplies.length,
       lastStudentMessage: lastStudentMsg.text,
