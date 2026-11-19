@@ -1,8 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/daily-report?send=true&secret=datacrumbs_daily_secret",
-      "schedule": "0 7 * * *"
-    }
-  ]
+  "crons": []
 }
