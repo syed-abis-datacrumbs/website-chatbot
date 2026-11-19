@@ -194,11 +194,12 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
     }
   }, [previewImageId]);
 
-  // Poll for new messages every 5 seconds
+  // Poll for new messages (skips when tab is in background)
   useEffect(() => {
     const poll = setInterval(async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
-        const res  = await fetch('/api/messages');
+        const res  = await fetch('/api/messages?limit=150');
         const data = await res.json() as { messages: ChatMessage[]; names?: Record<string, string> };
         setContacts(prev => {
           const updated = groupByPhone(data.messages, data.names, prev);
@@ -207,7 +208,7 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
           return prevSig !== newSig ? updated : prev;
         });
       } catch { /* ignore network errors */ }
-    }, 5000);
+    }, 7000);
     return () => clearInterval(poll);
   }, []);
 

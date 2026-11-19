@@ -6,6 +6,8 @@ const uri = process.env.MONGODB_URI!;
 declare global {
   // eslint-disable-next-line no-var
   var _mongoClient: MongoClient | undefined;
+  // eslint-disable-next-line no-var
+  var _indexesEnsured: boolean | undefined;
 }
 
 function isTopologyClosed(client?: MongoClient): boolean {
@@ -61,7 +63,20 @@ export async function getDb(): Promise<Db> {
     global._mongoClient = client;
   }
 
-  return global._mongoClient.db('datacrumbs_chatbot');
+  const db = global._mongoClient.db('datacrumbs_chatbot');
+
+  // Ensure high-performance indexes in the background once
+  if (!global._indexesEnsured) {
+    global._indexesEnsured = true;
+    Promise.allSettled([
+      db.collection('wa_messages').createIndex({ timestamp: -1 }, { background: true }),
+      db.collection('wa_messages').createIndex({ from: 1, timestamp: -1 }, { background: true }),
+      db.collection('contact_profiles').createIndex({ phone: 1 }, { background: true }),
+      db.collection('enrollment_sessions').createIndex({ phone: 1 }, { background: true }),
+    ]).catch(() => {});
+  }
+
+  return db;
 }
 
 export async function withMongoRetry<T>(fn: () => Promise<T>): Promise<T> {
@@ -162,15 +177,34 @@ export async function updateMessageDeliveryStatus(
   }
 }
 
-export async function getMessages(): Promise<ChatMessage[]> {
+export async function getMessages(limit = 300, since?: number): Promise<ChatMessage[]> {
   const db = await getDb();
+  const filter: Record<string, unknown> = {};
+  if (since && !isNaN(since) && since > 0) {
+    filter.timestamp = { $gt: since };
+  }
   const docs = await db
     .collection<ChatMessage>('wa_messages')
-    .find({})
+    .find(filter, {
+      projection: {
+        _id: 0,
+        from: 1,
+        text: 1,
+        reply: 1,
+        timestamp: 1,
+        mediaType: 1,
+        mediaUrl: 1,
+        wamId: 1,
+        deliveryStatus: 1,
+        deliveryError: 1,
+        isPayment: 1,
+        isDeleted: 1,
+      },
+    })
     .sort({ timestamp: -1 })
-    .limit(500)
+    .limit(limit)
     .toArray();
-  return docs.map(({ _id, ...rest }) => rest as ChatMessage);
+  return docs as ChatMessage[];
 }
 
 // ── Contact Profiles (name + name-ask tracking) ───────────────────────────────
@@ -446,18 +480,41 @@ export async function getLeads(): Promise<Lead[]> {
   }));
 }
 
+const nameCache = new Map<string, { name: string; cachedAt: number }>();
+const NAME_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
 export async function getContactNamesMap(phones: string[]): Promise<Map<string, string>> {
   if (phones.length === 0) return new Map();
-  const db = await getDb();
-  const [profiles, enrollments, interventions, demos, discounts] = await Promise.all([
-    db.collection('contact_profiles').find({ phone: { $in: phones } }).toArray(),
-    db.collection('enrollment_sessions').find({ phone: { $in: phones } }).toArray(),
-    db.collection('human_interventions').find({ phone: { $in: phones } }).toArray(),
-    db.collection('demo_requests').find({ phone: { $in: phones } }).toArray(),
-    db.collection('discount_requests').find({ phone: { $in: phones } }).toArray(),
-  ]);
 
   const map = new Map<string, string>();
+  const uncachedPhones: string[] = [];
+  const now = Date.now();
+
+  for (const phone of phones) {
+    const cached = nameCache.get(phone);
+    if (cached && (now - cached.cachedAt) < NAME_CACHE_TTL_MS) {
+      if (cached.name) map.set(phone, cached.name);
+    } else {
+      uncachedPhones.push(phone);
+    }
+  }
+
+  // If all requested phones are in cache, return immediately (0ms, 0 DB queries!)
+  if (uncachedPhones.length === 0) {
+    return map;
+  }
+
+  const db = await getDb();
+  const proj = { projection: { phone: 1, name: 1, collectedName: 1 } };
+
+  const [profiles, enrollments, interventions, demos, discounts] = await Promise.all([
+    db.collection('contact_profiles').find({ phone: { $in: uncachedPhones } }, proj).toArray(),
+    db.collection('enrollment_sessions').find({ phone: { $in: uncachedPhones } }, proj).toArray(),
+    db.collection('human_interventions').find({ phone: { $in: uncachedPhones } }, proj).toArray(),
+    db.collection('demo_requests').find({ phone: { $in: uncachedPhones } }, proj).toArray(),
+    db.collection('discount_requests').find({ phone: { $in: uncachedPhones } }, proj).toArray(),
+  ]);
+
   for (const doc of enrollments) {
     if (doc.name && typeof doc.name === 'string' && doc.name.trim()) map.set(doc.phone as string, doc.name.trim());
   }
@@ -474,6 +531,12 @@ export async function getContactNamesMap(phones: string[]): Promise<Map<string, 
   }
   for (const doc of profiles) {
     if (doc.name && typeof doc.name === 'string' && doc.name.trim()) map.set(doc.phone as string, doc.name.trim());
+  }
+
+  // Populate cache for newly fetched phones
+  for (const phone of uncachedPhones) {
+    const foundName = map.get(phone) || '';
+    nameCache.set(phone, { name: foundName, cachedAt: now });
   }
 
   return map;
