@@ -73,6 +73,8 @@ export default function FailedDeliveriesUI({ initialItems = [] }: { initialItems
   const [categoryFilter, setCategoryFilter] = useState<'all' | FailedDelivery['errorCategory']>('all');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const glassBg = isDark
     ? 'linear-gradient(180deg, rgba(20,29,25,0.85) 0%, rgba(13,20,17,0.95) 100%)'
@@ -169,6 +171,12 @@ export default function FailedDeliveriesUI({ initialItems = [] }: { initialItems
       return true;
     });
   }, [items, categoryFilter, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', background: isDark ? '#090d0b' : '#f8fafc', color: textCol }}>
@@ -273,7 +281,10 @@ export default function FailedDeliveriesUI({ initialItems = [] }: { initialItems
             return (
               <button
                 key={tab.id}
-                onClick={() => setCategoryFilter(tab.id as any)}
+                onClick={() => {
+                  setCategoryFilter(tab.id as any);
+                  setCurrentPage(1);
+                }}
                 style={{
                   background: active ? (isDark ? 'rgba(92,228,109,0.15)' : 'rgba(16,185,129,0.12)') : 'transparent',
                   color: active ? (isDark ? NEON : '#059669') : textMuted,
@@ -293,7 +304,10 @@ export default function FailedDeliveriesUI({ initialItems = [] }: { initialItems
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Search by name, phone, or error..."
             style={{
               width: '100%',
@@ -330,7 +344,7 @@ export default function FailedDeliveriesUI({ initialItems = [] }: { initialItems
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((item, idx) => {
+                {paginatedItems.map((item, idx) => {
                   const badge = getErrorCategoryBadge(item.errorCategory);
                   const isRetrying = retryingPhone === item.phone;
                   return (
@@ -446,6 +460,84 @@ export default function FailedDeliveriesUI({ initialItems = [] }: { initialItems
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Footer */}
+        {filtered.length > 0 && (
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '14px 18px', borderTop: `1px solid ${borderCol}`,
+            fontSize: 12, color: textMuted, flexWrap: 'wrap', gap: 12,
+            background: isDark ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.01)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span>
+                Showing <strong style={{ color: textCol }}>{(currentPage - 1) * pageSize + 1}</strong> to{' '}
+                <strong style={{ color: textCol }}>{Math.min(currentPage * pageSize, filtered.length)}</strong> of{' '}
+                <strong style={{ color: textCol }}>{filtered.length}</strong> undelivered messages
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  style={{
+                    background: isDark ? 'rgba(0,0,0,0.3)' : '#ffffff',
+                    border: `1px solid ${borderCol}`,
+                    borderRadius: 6, padding: '3px 8px',
+                    fontSize: 12, color: textCol, outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value={15}>15</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                style={{
+                  background: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+                  border: `1px solid ${borderCol}`,
+                  borderRadius: 6, padding: '5px 12px',
+                  fontSize: 12, color: currentPage <= 1 ? textMuted : textCol,
+                  cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+                  opacity: currentPage <= 1 ? 0.5 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                Previous
+              </button>
+
+              <span style={{ padding: '0 8px', fontWeight: 600, color: textCol }}>
+                Page {currentPage} of {totalPages}
+              </span>
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                style={{
+                  background: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+                  border: `1px solid ${borderCol}`,
+                  borderRadius: 6, padding: '5px 12px',
+                  fontSize: 12, color: currentPage >= totalPages ? textMuted : textCol,
+                  cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                  opacity: currentPage >= totalPages ? 0.5 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
