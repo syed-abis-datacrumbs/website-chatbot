@@ -99,6 +99,7 @@ export interface DailyReportData {
     followUpsText: string;
     previousFollowUps: Array<{ name: string; phone: string; date: string }>;
     todayFollowUps: Array<{ name: string; phone: string; date: string }>;
+    upcomingFollowUps?: Array<{ name: string; phone: string; date: string }>;
     paymentPending: number;
     enrolledToday: number;
     totalEnrolled: number;
@@ -141,6 +142,7 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
     followUpsText: '0',
     previousFollowUps: [] as Array<{ name: string; phone: string; date: string }>,
     todayFollowUps: [] as Array<{ name: string; phone: string; date: string }>,
+    upcomingFollowUps: [] as Array<{ name: string; phone: string; date: string }>,
     paymentPending: 0,
     enrolledToday: 0,
     totalEnrolled: 0,
@@ -153,8 +155,10 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
 
   const PKT_OFFSET_MS = 5 * 60 * 60 * 1000;
   const startOfTodayPKT = Math.floor((now + PKT_OFFSET_MS) / 86400000) * 86400000 - PKT_OFFSET_MS;
+  const endOfTodayPKT = startOfTodayPKT + 24 * 60 * 60 * 1000 - 1;
   const previousFollowUps: Array<{ name: string; phone: string; date: string }> = [];
   const todayFollowUps: Array<{ name: string; phone: string; date: string }> = [];
+  const upcomingFollowUps: Array<{ name: string; phone: string; date: string }> = [];
 
   try {
     const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
@@ -236,9 +240,12 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
         if (actionDate && actionDate.getTime() < startOfTodayPKT) {
           // Scheduled date was in past and status is still Follow Up -> Unconducted / Remaining
           previousFollowUps.push(item);
-        } else {
+        } else if (actionDate && actionDate.getTime() <= endOfTodayPKT) {
           // Scheduled date is today -> Today's Follow-up
           todayFollowUps.push(item);
+        } else {
+          // Scheduled date is in the future -> Upcoming
+          upcomingFollowUps.push(item);
         }
       } else if (status.includes('connected') || status.includes('call received')) {
         salesStats.connected++;
@@ -259,7 +266,7 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
     // Build the formatted follow-ups text block (list ALL students, no truncating)
     const followUpsLines: string[] = [`${salesStats.followUps}`];
     if (previousFollowUps.length > 0) {
-      followUpsLines.push('  🔴 *Remaining (Previous):*');
+      followUpsLines.push('  🔴 *Remaining (Previous / Missed):*');
       for (const f of previousFollowUps) {
         followUpsLines.push(`  - ${f.name} (${f.phone})`);
       }
@@ -270,10 +277,17 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
         followUpsLines.push(`  - ${f.name} (${f.phone})`);
       }
     }
+    if (upcomingFollowUps.length > 0) {
+      followUpsLines.push("  📅 *Upcoming (Later):*");
+      for (const f of upcomingFollowUps) {
+        followUpsLines.push(`  - ${f.name} (${f.phone})`);
+      }
+    }
 
     salesStats.followUpsText = followUpsLines.join('\n');
     salesStats.previousFollowUps = previousFollowUps;
     salesStats.todayFollowUps = todayFollowUps;
+    salesStats.upcomingFollowUps = upcomingFollowUps;
   } catch (sheetErr) {
     console.error('[dailyReport] Error reading Google Sheets:', sheetErr);
   }

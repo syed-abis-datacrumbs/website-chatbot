@@ -147,8 +147,10 @@ async function main() {
   let earliestLeadMs = Infinity;
   const PKT_OFFSET_MS = 5 * 60 * 60 * 1000;
   const startOfTodayPKT = Math.floor((now + PKT_OFFSET_MS) / 86400000) * 86400000 - PKT_OFFSET_MS;
+  const endOfTodayPKT = startOfTodayPKT + 24 * 60 * 60 * 1000 - 1;
   const previousFollowUps = [];
   const todayFollowUps = [];
+  const upcomingFollowUps = [];
 
   for (const r of rows) {
     const leadDate = parsePakistanDate(r[0], r[1]);
@@ -194,9 +196,12 @@ async function main() {
       if (actionDate && actionDate.getTime() < startOfTodayPKT) {
         // Scheduled in past, still Follow Up -> Unconducted / Remaining
         previousFollowUps.push(item);
-      } else {
+      } else if (actionDate && actionDate.getTime() <= endOfTodayPKT) {
         // Scheduled today -> Today's Follow-up
         todayFollowUps.push(item);
+      } else {
+        // Scheduled in future -> Upcoming
+        upcomingFollowUps.push(item);
       }
     } else if (status.includes('connected') || status.includes('call received')) {
       connected++;
@@ -208,7 +213,7 @@ async function main() {
   // Format follow-ups text block (list ALL students, no truncating)
   const followUpsLines = [`${followUps}`];
   if (previousFollowUps.length > 0) {
-    followUpsLines.push('  🔴 *Remaining (Previous):*');
+    followUpsLines.push('  🔴 *Remaining (Previous / Missed):*');
     for (const f of previousFollowUps) {
       followUpsLines.push(`  - ${f.name} (${f.phone})`);
     }
@@ -216,6 +221,12 @@ async function main() {
   if (todayFollowUps.length > 0) {
     followUpsLines.push("  🟢 *Today's Follow-ups:*");
     for (const f of todayFollowUps) {
+      followUpsLines.push(`  - ${f.name} (${f.phone})`);
+    }
+  }
+  if (upcomingFollowUps.length > 0) {
+    followUpsLines.push("  📅 *Upcoming (Later):*");
+    for (const f of upcomingFollowUps) {
       followUpsLines.push(`  - ${f.name} (${f.phone})`);
     }
   }
