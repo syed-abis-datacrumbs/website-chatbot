@@ -128,6 +128,8 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
   const inputRef  = useRef<HTMLTextAreaElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
   const emojiRef  = useRef<HTMLDivElement>(null);
+  const loadedPhonesRef = useRef<Set<string>>(new Set(initialPhone || initial[0]?.phone ? [initialPhone || initial[0].phone] : []));
+  const [loadingChat, setLoadingChat] = useState(false);
 
   const dateFilterActive = Boolean(dateFrom || dateTo || timeFrom || timeTo);
 
@@ -211,6 +213,29 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
     }, 7000);
     return () => clearInterval(poll);
   }, []);
+
+  // On-demand fetch messages for selected contact if not already loaded in memory
+  useEffect(() => {
+    if (!selected) return;
+    if (loadedPhonesRef.current.has(selected)) return;
+
+    loadedPhonesRef.current.add(selected);
+    setLoadingChat(true);
+
+    fetch(`/api/messages/${encodeURIComponent(selected)}`)
+      .then(r => r.json())
+      .then((data: { messages: ChatMessage[] }) => {
+        if (data?.messages) {
+          setContacts(prev => prev.map(c =>
+            c.phone === selected
+              ? { ...c, messages: data.messages, lastMessage: data.messages[0] || c.lastMessage }
+              : c
+          ));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingChat(false));
+  }, [selected]);
 
   // Fetch bot status whenever selected contact changes
   useEffect(() => {
@@ -681,7 +706,18 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
               display: 'flex', flexDirection: 'column', gap: 12,
               background: isDark ? BG : '#f8fafc',
             }}>
-              {(() => {
+              {loadingChat ? (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDark ? '#6b7280' : '#64748b', fontSize: 13, gap: 10 }}>
+                  <span style={{
+                    width: 16, height: 16, borderRadius: '50%',
+                    border: `2px solid ${isDark ? NEON : '#10b981'}`,
+                    borderTopColor: 'transparent',
+                    animation: 'spin 0.8s linear infinite',
+                    display: 'inline-block',
+                  }} />
+                  <span>Loading conversation...</span>
+                </div>
+              ) : (() => {
                 const ordered = [...active.messages].reverse();
                 return ordered.map((msg, i) => {
                   const prevMsg = i > 0 ? ordered[i - 1] : null;

@@ -1,23 +1,7 @@
-import { getMessages, getContactNamesMap, ChatMessage } from '@/lib/redis';
+import { getConversationsList, getMessagesByPhone } from '@/lib/redis';
 import ChatsUI, { Contact } from '@/components/dashboard/ChatsUI';
 
 export const dynamic = 'force-dynamic';
-
-function groupByPhone(messages: ChatMessage[], nameMap: Map<string, string>): Contact[] {
-  const map = new Map<string, ChatMessage[]>();
-  for (const msg of messages) {
-    if (!map.has(msg.from)) map.set(msg.from, []);
-    map.get(msg.from)!.push(msg);
-  }
-  return Array.from(map.entries())
-    .map(([phone, msgs]) => ({
-      phone,
-      name: nameMap.get(phone) || null,
-      messages: msgs.sort((a, b) => b.timestamp - a.timestamp),
-      lastMessage: msgs.reduce((l, m) => m.timestamp > l.timestamp ? m : l),
-    }))
-    .sort((a, b) => b.lastMessage.timestamp - a.lastMessage.timestamp);
-}
 
 export default async function ChatsPage({
   searchParams,
@@ -26,13 +10,26 @@ export default async function ChatsPage({
 }) {
   const resolvedParams = searchParams ? await searchParams : undefined;
   const initialPhone = resolvedParams?.phone ? decodeURIComponent(resolvedParams.phone) : undefined;
-  const messages = await getMessages();
-  const phones = Array.from(new Set(messages.map(m => m.from)));
-  const nameMap = await getContactNamesMap(phones);
-  const contacts = groupByPhone(messages, nameMap);
+
+  // Ultra-fast native MongoDB aggregation: loads all contact summaries in ~15ms
+  const convs = await getConversationsList(250);
+
+  const activePhone = initialPhone || convs[0]?.phone;
+  // Fetch full messages ONLY for the active open chat
+  const activeMessages = activePhone ? await getMessagesByPhone(activePhone, 100) : [];
+
+  const contacts: Contact[] = convs.map(c => ({
+    phone: c.phone,
+    name: c.name,
+    messages: c.phone === activePhone ? activeMessages : [c.lastMessage],
+    lastMessage: c.lastMessage,
+  }));
+
+  const total = convs.reduce((sum, c) => sum + (c.messageCount || 1), 0);
+
   return (
     <div style={{ height: '100%' }}>
-      <ChatsUI contacts={contacts} total={messages.length} initialPhone={initialPhone} />
+      <ChatsUI contacts={contacts} total={total} initialPhone={initialPhone} />
     </div>
   );
 }

@@ -437,6 +437,83 @@ export async function getStats(): Promise<Stats> {
 
 // ── Leads ──────────────────────────────────────────────────────────────────
 
+export async function getMessagesByPhone(phone: string, limit = 250): Promise<ChatMessage[]> {
+  const db = await getDb();
+  const clean = phone.replace(/\D/g, '');
+  const variants = [phone, clean];
+  if (clean.startsWith('0')) variants.push('92' + clean.slice(1));
+  else if (clean.startsWith('92')) variants.push('0' + clean.slice(2));
+  else if (clean.startsWith('3')) {
+    variants.push('92' + clean);
+    variants.push('0' + clean);
+  }
+
+  const msgs = await db
+    .collection<ChatMessage>('wa_messages')
+    .find({ from: { $in: variants } }, {
+      projection: {
+        _id: 0,
+        from: 1,
+        text: 1,
+        reply: 1,
+        timestamp: 1,
+        mediaType: 1,
+        mediaUrl: 1,
+        wamId: 1,
+        deliveryStatus: 1,
+        deliveryError: 1,
+        isPayment: 1,
+        isDeleted: 1,
+      },
+    })
+    .sort({ timestamp: -1 })
+    .limit(limit)
+    .toArray();
+
+  return msgs as ChatMessage[];
+}
+
+export async function getConversationsList(limit = 200): Promise<{ phone: string; name?: string | null; lastMessage: ChatMessage; messageCount: number }[]> {
+  const db = await getDb();
+  const raw = await db.collection('wa_messages').aggregate<{
+    _id: string;
+    lastMessage: ChatMessage;
+    messageCount: number;
+  }>([
+    { $sort: { timestamp: -1 } },
+    {
+      $group: {
+        _id: '$from',
+        lastMessage: { $first: '$$ROOT' },
+        messageCount: { $sum: 1 },
+      },
+    },
+    { $sort: { 'lastMessage.timestamp': -1 } },
+    { $limit: limit },
+  ]).toArray();
+
+  const phones = raw.map(r => r._id);
+  const nameMap = await getContactNamesMap(phones);
+
+  return raw.map(r => ({
+    phone: r._id,
+    name: nameMap.get(r._id) || null,
+    lastMessage: {
+      from: r.lastMessage.from,
+      text: r.lastMessage.text,
+      reply: r.lastMessage.reply,
+      timestamp: r.lastMessage.timestamp,
+      mediaType: r.lastMessage.mediaType,
+      mediaUrl: r.lastMessage.mediaUrl,
+      deliveryStatus: r.lastMessage.deliveryStatus,
+      deliveryError: r.lastMessage.deliveryError,
+      isPayment: r.lastMessage.isPayment,
+      isDeleted: r.lastMessage.isDeleted,
+    },
+    messageCount: r.messageCount,
+  }));
+}
+
 export interface Lead {
   phone: string;
   name?: string;
