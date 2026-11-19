@@ -392,7 +392,7 @@ export async function generateDailyReportData(customWindowHours: number = 24): P
   } finally {
     try {
       await client.close();
-    } catch {}
+    } catch { }
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -462,19 +462,30 @@ export async function sendDailyReport(
         .replace(/\s{2,}/g, ' ')
         .trim();
 
-    // Parameter 13: Meta template variables cannot have newlines. Format follow-ups cleanly in 1 line.
+    // Parameter 13: Meta template variables cannot have newlines. Format follow-ups cleanly with Name + Phone in 1 line.
+    const formatLead = (f: { name: string; phone: string }) => {
+      const name = (f.name || 'Lead').trim();
+      const phone = (f.phone || '').trim();
+      return phone ? `${name} (${phone})` : name;
+    };
+
     let followUpsInline = `${data.salesCrm.followUps}`;
-    const todayNames = (data.salesCrm.todayFollowUps || []).map(f => f.name).filter(Boolean);
-    const missedNames = (data.salesCrm.previousFollowUps || []).map(f => f.name).filter(Boolean);
-    const upcomingNames = (data.salesCrm.upcomingFollowUps || []).map(f => f.name).filter(Boolean);
+    const todayItems = (data.salesCrm.todayFollowUps || []).map(formatLead).filter(Boolean);
+    const missedItems = (data.salesCrm.previousFollowUps || []).map(formatLead).filter(Boolean);
+    const upcomingItems = (data.salesCrm.upcomingFollowUps || []).map(formatLead).filter(Boolean);
 
     const parts: string[] = [];
-    if (todayNames.length > 0) parts.push(`Today: ${todayNames.join(', ')}`);
-    if (missedNames.length > 0) parts.push(`Missed: ${missedNames.join(', ')}`);
-    if (upcomingNames.length > 0) parts.push(`Later: ${upcomingNames.join(', ')}`);
+    if (todayItems.length > 0) parts.push(`Today: ${todayItems.join(', ')}`);
+    if (missedItems.length > 0) parts.push(`Missed: ${missedItems.join(', ')}`);
+    if (upcomingItems.length > 0) parts.push(`Later: ${upcomingItems.join(', ')}`);
 
     if (parts.length > 0) {
       followUpsInline += ` (${parts.join(' | ')})`;
+    }
+
+    // Meta template parameter hard cap is 1024 characters; cap at 980 for safety
+    if (followUpsInline.length > 980) {
+      followUpsInline = followUpsInline.slice(0, 977) + '...';
     }
 
     const templateParameters = [
