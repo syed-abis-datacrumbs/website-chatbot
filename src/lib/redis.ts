@@ -23,7 +23,7 @@ function isTopologyClosed(client?: MongoClient): boolean {
   }
 }
 
-async function getDb(): Promise<Db> {
+export async function getDb(): Promise<Db> {
   if (!global._mongoClient || isTopologyClosed(global._mongoClient)) {
     if (global._mongoClient) {
       try {
