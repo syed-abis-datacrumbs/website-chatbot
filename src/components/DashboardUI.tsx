@@ -130,10 +130,13 @@ export default function DashboardUI({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <div style={{
               width: 36, height: 36, borderRadius: '50%',
-              background: 'rgba(255,255,255,0.2)',
-              border: '2px solid rgba(255,255,255,0.5)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-            }}>🤖</div>
+              background: '#ffffff',
+              border: '2px solid rgba(255,255,255,0.8)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden', padding: 5, flexShrink: 0,
+            }}>
+              <img src="/logo-icon.png" alt="DataCrumbs" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </div>
             <div>
               <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>DataCrumbs</div>
               <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11 }}>WhatsApp Inbox</div>
@@ -399,10 +402,13 @@ export default function DashboardUI({
                   <div style={{ display: 'flex', gap: 10 }}>
                     <div style={{
                       width: 34, height: 34, borderRadius: '50%', flexShrink: 0, alignSelf: 'flex-end',
-                      background: GREEN,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+                      background: '#ffffff',
+                      border: '1.5px solid #e5e7eb',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      overflow: 'hidden', padding: 5,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                     }}>
-                      🤖
+                      <img src="/logo-icon.png" alt="DataCrumbs" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                     </div>
                     <div style={{ maxWidth: '65%' }}>
                       <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4, paddingLeft: 4 }}>

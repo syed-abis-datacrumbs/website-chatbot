@@ -164,12 +164,13 @@ export default function ChatWidget() {
               {/* Avatar */}
               <div style={{
                 width: 44, height: 44, borderRadius: '50%',
-                background: 'rgba(255,255,255,0.2)',
-                border: '2.5px solid rgba(255,255,255,0.6)',
+                background: '#ffffff',
+                border: '2px solid rgba(255,255,255,0.8)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 20, flexShrink: 0,
+                flexShrink: 0, overflow: 'hidden', padding: 6,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
               }}>
-                🤖
+                <img src="/logo-icon.png" alt="DataCrumbs" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
 
               {/* Name + subtitle */}
@@ -260,10 +261,14 @@ export default function ChatWidget() {
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
-                background: GREEN, display: 'flex',
+                background: '#ffffff', display: 'flex',
                 alignItems: 'center', justifyContent: 'center',
-                fontSize: 13, flexShrink: 0,
-              }}>🤖</div>
+                flexShrink: 0, overflow: 'hidden', padding: 4,
+                border: '1px solid #e5e7eb',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              }}>
+                <img src="/logo-icon.png" alt="DataCrumbs" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              </div>
               <div>
                 <div style={{
                   background: theme === 'dark' ? '#141d19' : '#ffffff',
@@ -323,10 +328,14 @@ export default function ChatWidget() {
                 {msg.role === 'bot' && (
                   <div style={{
                     width: 28, height: 28, borderRadius: '50%',
-                    background: GREEN, display: 'flex',
+                    background: '#ffffff', display: 'flex',
                     alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, flexShrink: 0,
-                  }}>🤖</div>
+                    flexShrink: 0, overflow: 'hidden', padding: 4,
+                    border: '1px solid #e5e7eb',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                  }}>
+                    <img src="/logo-icon.png" alt="DataCrumbs" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  </div>
                 )}
 
                 <div style={{ maxWidth: 260 }}>
@@ -363,9 +372,14 @@ export default function ChatWidget() {
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
                 <div style={{
                   width: 28, height: 28, borderRadius: '50%',
-                  background: GREEN, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', fontSize: 13,
-                }}>🤖</div>
+                  background: '#ffffff', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, overflow: 'hidden', padding: 4,
+                  border: '1px solid #e5e7eb',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                }}>
+                  <img src="/logo-icon.png" alt="DataCrumbs" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                </div>
                 <div style={{
                   background: theme === 'dark' ? '#141d19' : '#ffffff',
                   borderRadius: '16px 16px 16px 4px',

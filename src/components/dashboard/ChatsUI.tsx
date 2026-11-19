@@ -821,10 +821,13 @@ export default function ChatsUI({ contacts: initial, total, initialPhone }: { co
                         <div style={{ display: 'flex', gap: 8 }}>
                           <div style={{
                             width: 30, height: 30, borderRadius: '50%', flexShrink: 0, alignSelf: 'flex-end',
-                            background: isDark ? '#1a251f' : '#ecfdf5',
-                            border: `1.5px solid ${isDark ? NEON : '#10b981'}`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13,
-                          }}>🤖</div>
+                            background: '#ffffff',
+                            border: `1.5px solid ${isDark ? '#22c55e' : '#10b981'}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            overflow: 'hidden', padding: 4,
+                          }}>
+                            <img src="/logo-icon.png" alt="DataCrumbs" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                          </div>
                           <div style={{ maxWidth: '68%' }}>
                             <div style={{ fontSize: 10, color: isDark ? '#6b7280' : '#64748b', marginBottom: 2, paddingLeft: 4 }}>
                               {msg.text === '' ? 'You (Admin)' : 'DataCrumbs AI'}
