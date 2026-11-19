@@ -21,6 +21,7 @@ import {
   appendDiscountRow, updateDiscountRowComment,
   appendDemoRow,
   appendLeadRow, updateLeadName,
+  markChatbotStatusInPrettySheet,
 } from '@/lib/google';
 
 // ── GET: Meta webhook verification ───────────────────────────────────────────
@@ -960,6 +961,11 @@ export async function POST(req: NextRequest) {
         console.log(`[webhook] Ignoring empty/non-content event of type '${msgType}' from ${from}`);
         return;
       }
+
+      // Mark this student as having interacted with the Chatbot in the Pretty sheet ('Yes')
+      markChatbotStatusInPrettySheet(from, 'Yes').catch((err) =>
+        console.warn(`[webhook] Background markChatbotStatus error for ${from}:`, err?.message || err)
+      );
 
       const [session, contactProfile, hadPriorMessages] = await Promise.all([
         getActiveEnrollmentSession(from),

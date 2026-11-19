@@ -1080,3 +1080,15 @@ export async function scanMessagesForInterventions(limit = 2000): Promise<Backfi
 
   return matches;
 }
+
+export async function getChattedPhoneNumbers(): Promise<string[]> {
+  const db = await getDb();
+  // Distinct senders who have sent at least one non-empty message or media
+  const phones = await db.collection('wa_messages').distinct('from', {
+    $or: [
+      { text: { $exists: true, $nin: ['', '[template]', null] } },
+      { mediaType: { $exists: true, $ne: null } },
+    ],
+  });
+  return (phones || []).map(p => String(p));
+}

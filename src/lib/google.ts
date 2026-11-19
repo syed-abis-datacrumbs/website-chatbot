@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { Readable } from 'stream';
+import { getChattedPhoneNumbers } from '@/lib/redis';
 
 const DRIVE_FOLDER_ID   = process.env.GOOGLE_DRIVE_FOLDER_ID!;
 const SHEET_ID          = process.env.GOOGLE_SHEET_ID!;
@@ -552,4 +553,178 @@ export async function getSheetNavCounts(): Promise<{ leads: number; enrollments:
     console.warn('[google/getSheetNavCounts] Failed to fetch nav counts:', err instanceof Error ? err.message : err);
     return { leads: 0, enrollments: 0 };
   }
+}
+
+// ── Pretty Sheet Chatbot Status Column Tracking ──────────────────────────────
+
+function columnIndexToLetter(index: number): string {
+  let temp = index;
+  let letter = '';
+  while (temp >= 0) {
+    letter = String.fromCharCode((temp % 26) + 65) + letter;
+    temp = Math.floor(temp / 26) - 1;
+  }
+  return letter;
+}
+
+export async function getPrettyTabName(sheetsClient?: any): Promise<string> {
+  try {
+    const sheets = sheetsClient || google.sheets({ version: 'v4', auth: auth() });
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
+    const sheetList = meta.data.sheets?.map((s: any) => s.properties?.title as string) || [];
+    const found = sheetList.find((t: string) => t.toLowerCase() === 'pretty' || t.toLowerCase() === 'preety');
+    if (found) return found;
+  } catch (e) {
+    console.warn('[sheets] Error resolving pretty tab title:', e);
+  }
+  return process.env.PRIMARY_SHEET_NAME || 'Pretty';
+}
+
+/**
+ * Updates a single lead's 'Chatbot' column in the Pretty sheet to 'Yes' or 'No'.
+ * ONLY writes to the Chatbot column cell (e.g. U14). Never touches any other column or row.
+ */
+export async function markChatbotStatusInPrettySheet(
+  phone: string,
+  status: 'Yes' | 'No' = 'Yes'
+): Promise<boolean> {
+  try {
+    const sheets = google.sheets({ version: 'v4', auth: auth() });
+    const tabName = await getPrettyTabName(sheets);
+
+    // Read header row (row 1) and all phones in Column E
+    const [headerRes, phonesRes] = await Promise.all([
+      sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: tabRange(tabName, '1:1'),
+      }),
+      sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: tabRange(tabName, 'E:E'),
+      }),
+    ]);
+
+    const headers = (headerRes.data.values?.[0] as string[]) || [];
+    let chatbotColIndex = headers.findIndex(h => (h || '').trim().toLowerCase() === 'chatbot');
+
+    if (chatbotColIndex === -1) {
+      chatbotColIndex = headers.length > 0 ? headers.length : 20; // Column U (index 20) by default
+      const colLetter = columnIndexToLetter(chatbotColIndex);
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SHEET_ID,
+        range: tabRange(tabName, `${colLetter}1`),
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [['Chatbot']] },
+      });
+    }
+
+    const colLetter = columnIndexToLetter(chatbotColIndex);
+    const phoneRows = (phonesRes.data.values as string[][]) || [];
+    const cleanTarget = phone.replace(/\D/g, '');
+    const last7Target = cleanTarget.slice(-7);
+
+    // Locate row number in Column E
+    let targetRowNumber = -1;
+    for (let i = 1; i < phoneRows.length; i++) {
+      const raw = (phoneRows[i]?.[0] || '').toString();
+      const clean = raw.replace(/\D/g, '');
+      if (clean && clean.length >= 7 && (clean === cleanTarget || clean.endsWith(last7Target) || cleanTarget.endsWith(clean.slice(-7)))) {
+        targetRowNumber = i + 1;
+        break;
+      }
+    }
+
+    if (targetRowNumber > 1) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SHEET_ID,
+        range: tabRange(tabName, `${colLetter}${targetRowNumber}`),
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [[status]] },
+      });
+      console.log(`[sheets] Stamped Pretty sheet row ${targetRowNumber} column ${colLetter} ('Chatbot') = '${status}' for ${phone}`);
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.warn(`[sheets] Failed to mark Chatbot status in Pretty sheet for ${phone}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Bulk synchronizes the entire 'Chatbot' column in the Pretty sheet.
+ * Updates ONLY column Chatbot (e.g. U1:U500) without modifying any other data.
+ */
+export async function syncAllChatbotStatusesToPrettySheet(): Promise<{
+  tabName: string;
+  totalRows: number;
+  updatedCount: number;
+  chattedCount: number;
+  notChattedCount: number;
+  colLetter: string;
+}> {
+  const sheets = google.sheets({ version: 'v4', auth: auth() });
+  const tabName = await getPrettyTabName(sheets);
+
+  const [headerRes, rowsRes, allChattedPhones] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: tabRange(tabName, '1:1') }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: tabRange(tabName, 'A:E') }),
+    getChattedPhoneNumbers(),
+  ]);
+
+  const headers = (headerRes.data.values?.[0] as string[]) || [];
+  let chatbotColIndex = headers.findIndex(h => (h || '').trim().toLowerCase() === 'chatbot');
+  if (chatbotColIndex === -1) {
+    chatbotColIndex = headers.length > 0 ? headers.length : 20; // default Column U
+  }
+  const colLetter = columnIndexToLetter(chatbotColIndex);
+
+  const rows = (rowsRes.data.values as string[][]) || [];
+  if (rows.length === 0) {
+    return { tabName, totalRows: 0, updatedCount: 0, chattedCount: 0, notChattedCount: 0, colLetter };
+  }
+
+  // Pre-index 7-digit suffixes for instant lookup
+  const chattedSuffixSet = new Set<string>();
+  for (const p of allChattedPhones) {
+    const clean = p.replace(/\D/g, '');
+    if (clean.length >= 7) chattedSuffixSet.add(clean.slice(-7));
+  }
+
+  const columnValues: string[][] = [['Chatbot']];
+  let chattedCount = 0;
+  let notChattedCount = 0;
+
+  for (let i = 1; i < rows.length; i++) {
+    const rawPhone = (rows[i]?.[4] || '').toString();
+    const clean = rawPhone.replace(/\D/g, '');
+    const hasChatted = clean.length >= 7 && chattedSuffixSet.has(clean.slice(-7));
+
+    if (hasChatted) {
+      columnValues.push(['Yes']);
+      chattedCount++;
+    } else {
+      columnValues.push(['No']);
+      notChattedCount++;
+    }
+  }
+
+  // Write strictly to Column colLetter (e.g. U1:U500)
+  const range = tabRange(tabName, `${colLetter}1:${colLetter}${columnValues.length}`);
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: columnValues },
+  });
+
+  console.log(`[sheets] Synced Pretty sheet column ${colLetter} ('Chatbot'): ${chattedCount} Yes, ${notChattedCount} No`);
+  return {
+    tabName,
+    totalRows: rows.length,
+    updatedCount: columnValues.length - 1,
+    chattedCount,
+    notChattedCount,
+    colLetter,
+  };
 }
