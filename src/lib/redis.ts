@@ -71,6 +71,7 @@ export async function getDb(): Promise<Db> {
     Promise.allSettled([
       db.collection('wa_messages').createIndex({ timestamp: -1 }, { background: true }),
       db.collection('wa_messages').createIndex({ from: 1, timestamp: -1 }, { background: true }),
+      db.collection('wa_messages').createIndex({ deliveryStatus: 1, timestamp: -1 }, { background: true }),
       db.collection('contact_profiles').createIndex({ phone: 1 }, { background: true }),
       db.collection('enrollment_sessions').createIndex({ phone: 1 }, { background: true }),
     ]).catch(() => {});
@@ -512,6 +513,71 @@ export async function getConversationsList(limit = 200): Promise<{ phone: string
     },
     messageCount: r.messageCount,
   }));
+}
+
+export interface FailedDelivery {
+  phone: string;
+  name?: string | null;
+  text: string;
+  reply: string;
+  timestamp: number;
+  deliveryError: string;
+  wamId?: string;
+  errorCategory: '24h_window' | 'invalid_phone' | 'policy_block' | 'rate_limit' | 'other';
+}
+
+export async function getFailedDeliveries(limit = 250): Promise<FailedDelivery[]> {
+  const db = await getDb();
+  const docs = await db.collection<ChatMessage>('wa_messages')
+    .find({ deliveryStatus: 'failed' }, {
+      projection: {
+        _id: 0,
+        from: 1,
+        text: 1,
+        reply: 1,
+        timestamp: 1,
+        deliveryStatus: 1,
+        deliveryError: 1,
+        wamId: 1,
+      },
+    })
+    .sort({ timestamp: -1 })
+    .limit(limit)
+    .toArray();
+
+  const phones = Array.from(new Set(docs.map(d => d.from)));
+  const nameMap = await getContactNamesMap(phones);
+
+  return docs.map(d => {
+    const err = d.deliveryError || 'Message delivery failed (Meta error)';
+    let errorCategory: FailedDelivery['errorCategory'] = 'other';
+    const lower = err.toLowerCase();
+    if (lower.includes('24 hour') || lower.includes('131047') || lower.includes('re-engagement') || lower.includes('outside')) {
+      errorCategory = '24h_window';
+    } else if (lower.includes('not a valid') || lower.includes('not registered') || lower.includes('131026') || lower.includes('invalid number') || lower.includes('undeliverable')) {
+      errorCategory = 'invalid_phone';
+    } else if (lower.includes('policy') || lower.includes('spam') || lower.includes('131048') || lower.includes('blocked') || lower.includes('opt')) {
+      errorCategory = 'policy_block';
+    } else if (lower.includes('rate limit') || lower.includes('130429') || lower.includes('throughput')) {
+      errorCategory = 'rate_limit';
+    }
+
+    return {
+      phone: d.from,
+      name: nameMap.get(d.from) || null,
+      text: d.text,
+      reply: d.reply,
+      timestamp: d.timestamp,
+      deliveryError: err,
+      wamId: d.wamId,
+      errorCategory,
+    };
+  });
+}
+
+export async function getFailedDeliveriesCount(): Promise<number> {
+  const db = await getDb();
+  return db.collection('wa_messages').countDocuments({ deliveryStatus: 'failed' });
 }
 
 export interface Lead {

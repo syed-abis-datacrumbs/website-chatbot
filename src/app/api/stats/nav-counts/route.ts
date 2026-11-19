@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getNavCounts } from '@/lib/redis';
+import { getNavCounts, getFailedDeliveriesCount } from '@/lib/redis';
 import { getSheetNavCounts } from '@/lib/google';
 import { getUnifiedEnrollments } from '@/lib/enrollments';
 
 export const dynamic = 'force-dynamic';
 
-let cachedNavCounts: { chats: number; leads: number; enrollments: number; interventions: number } | null = null;
+let cachedNavCounts: { chats: number; leads: number; enrollments: number; interventions: number; failed: number } | null = null;
 let lastCacheTime = 0;
 const CACHE_TTL_MS = 30 * 1000; // 30 seconds
 
@@ -15,10 +15,11 @@ export async function GET() {
     return NextResponse.json(cachedNavCounts);
   }
 
-  const [mongoCounts, sheetCounts, enrollmentsList] = await Promise.all([
+  const [mongoCounts, sheetCounts, enrollmentsList, failedCount] = await Promise.all([
     getNavCounts().catch(() => ({ chats: 0, leads: 0, enrollments: 0, interventions: 0 })),
     getSheetNavCounts().catch(() => ({ leads: 0, enrollments: 0 })),
     getUnifiedEnrollments().catch(() => null),
+    getFailedDeliveriesCount().catch(() => 0),
   ]);
 
   // Use the exact count of verified payment submissions matching the Payments dashboard
@@ -29,6 +30,7 @@ export async function GET() {
     leads: sheetCounts.leads,
     enrollments: enrollmentsCount,
     interventions: mongoCounts.interventions,
+    failed: failedCount,
   };
   lastCacheTime = now;
 
