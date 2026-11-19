@@ -92,6 +92,35 @@ export async function uploadScreenshotToDrive(
   return { fileId: file.data.id!, webViewLink: file.data.webViewLink! };
 }
 
+export async function uploadBrochureToDrive(
+  buffer: Buffer,
+  filename: string
+): Promise<{ fileId: string; webViewLink: string }> {
+  const drive = google.drive({ version: 'v3', auth: auth() });
+  const file = await drive.files.create({
+    requestBody: {
+      name: filename,
+      parents: [DRIVE_FOLDER_ID],
+    },
+    media: { mimeType: 'application/pdf', body: Readable.from(buffer) },
+    fields: 'id,webViewLink',
+  });
+
+  try {
+    await drive.permissions.create({
+      fileId: file.data.id!,
+      requestBody: { role: 'reader', type: 'anyone' },
+    });
+  } catch (permErr) {
+    console.warn('[google/drive] Failed to set public permission on brochure:', permErr);
+  }
+
+  return {
+    fileId: file.data.id!,
+    webViewLink: file.data.webViewLink || `https://drive.google.com/file/d/${file.data.id}/view`,
+  };
+}
+
 export async function getDriveFileBuffer(fileId: string): Promise<{ buffer: Buffer; mimeType: string }> {
   const drive = google.drive({ version: 'v3', auth: auth() });
   const meta = await drive.files.get({ fileId, fields: 'mimeType' });

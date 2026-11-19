@@ -837,23 +837,66 @@ export async function updateEnrollmentState(
 
 // ── Brochure ───────────────────────────────────────────────────────────────
 
-export async function saveBrochure(buffer: Buffer, filename: string): Promise<void> {
+export interface StoredBrochure {
+  data?: Buffer;
+  filename: string;
+  uploadedAt: number;
+  size?: number;
+  whatsappMediaId?: string;
+  whatsappMediaUploadedAt?: number;
+  driveUrl?: string;
+  driveFileId?: string;
+}
+
+export async function saveBrochure(
+  buffer: Buffer,
+  filename: string,
+  extra?: { driveUrl?: string; driveFileId?: string; whatsappMediaId?: string; size?: number }
+): Promise<void> {
   const db = await getDb();
+  const value: Record<string, unknown> = {
+    filename,
+    uploadedAt: Date.now(),
+    size: extra?.size ?? buffer.length,
+    whatsappMediaId: extra?.whatsappMediaId,
+    whatsappMediaUploadedAt: extra?.whatsappMediaId ? Date.now() : undefined,
+    driveUrl: extra?.driveUrl,
+    driveFileId: extra?.driveFileId,
+  };
+  // Only store buffer in MongoDB if <= 4MB
+  if (buffer.length <= 4 * 1024 * 1024) {
+    value.data = buffer.toString('base64');
+  }
   await db.collection('settings').updateOne(
     { key: 'brochure' },
-    { $set: { value: { data: buffer.toString('base64'), filename, uploadedAt: Date.now() } } },
+    { $set: { value } },
     { upsert: true }
   );
 }
 
-export async function getBrochure(): Promise<{ data: Buffer; filename: string; uploadedAt: number } | null> {
+export async function updateBrochureMediaId(mediaId: string): Promise<void> {
+  const db = await getDb();
+  await db.collection('settings').updateOne(
+    { key: 'brochure' },
+    { $set: { 'value.whatsappMediaId': mediaId, 'value.whatsappMediaUploadedAt': Date.now() } },
+    { upsert: true }
+  );
+}
+
+export async function getBrochure(): Promise<StoredBrochure | null> {
   const db  = await getDb();
   const doc = await db.collection('settings').findOne({ key: 'brochure' });
-  if (!doc?.value?.data) return null;
+  if (!doc?.value) return null;
+  const val = doc.value;
   return {
-    data:       Buffer.from(doc.value.data as string, 'base64'),
-    filename:   doc.value.filename as string,
-    uploadedAt: doc.value.uploadedAt as number,
+    data: val.data ? Buffer.from(val.data as string, 'base64') : undefined,
+    filename: (val.filename as string) || 'DataCrumbs-Bootcamp-Brochure.pdf',
+    uploadedAt: (val.uploadedAt as number) || Date.now(),
+    size: val.size as number | undefined,
+    whatsappMediaId: val.whatsappMediaId as string | undefined,
+    whatsappMediaUploadedAt: val.whatsappMediaUploadedAt as number | undefined,
+    driveUrl: val.driveUrl as string | undefined,
+    driveFileId: val.driveFileId as string | undefined,
   };
 }
 

@@ -1,4 +1,8 @@
 import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import { getBrochure, updateBrochureMediaId } from '@/lib/redis';
+import { getDriveFileBuffer } from '@/lib/google';
 
 const BROCHURE_FILENAME = 'DataCrumbs-Bootcamp-Brochure.pdf';
 
@@ -123,26 +127,110 @@ export async function downloadWhatsAppMedia(
   return { buffer: Buffer.from(res.data), mimeType: mime_type };
 }
 
+export async function uploadMediaToWhatsApp(
+  buffer: Buffer,
+  filename: string,
+  mimeType: string = 'application/pdf'
+): Promise<string> {
+  const formData = new FormData();
+  formData.append('messaging_product', 'whatsapp');
+  formData.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
+  formData.append('type', mimeType);
+
+  const url = apiUrl('/media');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+    },
+    body: formData,
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.id) {
+    throw new Error(`WhatsApp media upload failed (HTTP ${res.status}): ${JSON.stringify(data)}`);
+  }
+  return data.id as string;
+}
+
+export async function uploadActiveBrochureToWhatsApp(): Promise<{ mediaId: string; filename: string }> {
+  const doc = await getBrochure();
+  let buffer: Buffer | null = null;
+  let filename = doc?.filename || BROCHURE_FILENAME;
+
+  // 1. If stored in MongoDB
+  if (doc?.data && doc.data.length > 0) {
+    buffer = doc.data;
+  }
+  // 2. If stored in Google Drive
+  else if (doc?.driveFileId) {
+    try {
+      const driveFile = await getDriveFileBuffer(doc.driveFileId);
+      buffer = driveFile.buffer;
+    } catch (e) {
+      console.warn('[brochure] Failed to get brochure buffer from Google Drive:', e);
+    }
+  }
+
+  // 3. Fallback: local static brochure in public/brochure.pdf
+  if (!buffer) {
+    const localPath = path.join(process.cwd(), 'public', 'brochure.pdf');
+    if (fs.existsSync(localPath)) {
+      buffer = fs.readFileSync(localPath);
+      filename = 'DataCrumbs-Bootcamp-Brochure.pdf';
+    }
+  }
+
+  if (!buffer) {
+    throw new Error('No brochure file found to upload to WhatsApp');
+  }
+
+  console.log(`[brochure] Uploading active brochure (${buffer.length} bytes, filename: ${filename}) to WhatsApp Media API...`);
+  const mediaId = await uploadMediaToWhatsApp(buffer, filename, 'application/pdf');
+  console.log(`[brochure] Uploaded to WhatsApp Media API successfully. mediaId: ${mediaId}`);
+  await updateBrochureMediaId(mediaId);
+
+  return { mediaId, filename };
+}
+
+export async function getOrUploadBrochureMedia(): Promise<{ mediaId: string; filename: string }> {
+  const doc = await getBrochure();
+  const TWENTY_FIVE_DAYS_MS = 25 * 24 * 60 * 60 * 1000;
+
+  if (doc?.whatsappMediaId && doc.whatsappMediaUploadedAt && (Date.now() - doc.whatsappMediaUploadedAt < TWENTY_FIVE_DAYS_MS)) {
+    return { mediaId: doc.whatsappMediaId, filename: doc.filename };
+  }
+
+  return uploadActiveBrochureToWhatsApp();
+}
+
 export async function sendWhatsAppDocument(to: string) {
-  // Use the dynamic brochure endpoint which serves whatever PDF is uploaded in Configuration (or fallback)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://agent.datacrumbs.org';
-  const brochureLink = `${baseUrl}/api/brochure`;
-  console.log('[brochure] sending dynamic brochure link:', brochureLink);
+  const brochure = await getOrUploadBrochureMedia();
+  const filename = brochure.filename || BROCHURE_FILENAME;
+
+  const makePayload = (mediaId: string) => ({
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'document',
+    document: {
+      id: mediaId,
+      filename,
+    },
+  });
+
   try {
-    await axios.post(
-      apiUrl('/messages'),
-      {
-        messaging_product: 'whatsapp',
-        to,
-        type: 'document',
-        document: { link: brochureLink, filename: BROCHURE_FILENAME },
-      },
-      { headers: headers() }
-    );
-    console.log('[brochure] document message accepted by WhatsApp API');
+    const res = await axios.post(apiUrl('/messages'), makePayload(brochure.mediaId), { headers: headers() });
+    console.log(`[brochure] WhatsApp document delivered to ${to} using mediaId ${brochure.mediaId} (wamId: ${res.data?.messages?.[0]?.id})`);
+    return res.data;
   } catch (err: unknown) {
     const axErr = err as { response?: { status?: number; data?: unknown }; message?: string };
-    console.error('[brochure] WhatsApp API rejected:', JSON.stringify(axErr?.response?.data ?? axErr?.message ?? err));
-    throw err;
+    console.warn('[brochure] WhatsApp document send with cached mediaId failed, refreshing media upload:', JSON.stringify(axErr?.response?.data ?? axErr?.message));
+
+    // Force re-upload active brochure and retry once
+    const refreshed = await uploadActiveBrochureToWhatsApp();
+    const retryRes = await axios.post(apiUrl('/messages'), makePayload(refreshed.mediaId), { headers: headers() });
+    console.log(`[brochure] Retry document delivered to ${to} using refreshed mediaId ${refreshed.mediaId}`);
+    return retryRes.data;
   }
 }

@@ -33,6 +33,7 @@ export default function ConfigUI({
   const [uploadedName, setUploadedName] = useState<string | null>(currentBrochure?.filename ?? null);
   const [uploadedAt,  setUploadedAt]  = useState<number | null>(currentBrochure?.uploadedAt ?? null);
   const [uploadError, setUploadError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const [f1, setF1] = useState(false);
   const [f2, setF2] = useState(false);
@@ -98,21 +99,58 @@ export default function ConfigUI({
       setUploadError('Only PDF files are accepted');
       return;
     }
+    if (file.size > 30 * 1024 * 1024) {
+      setUploadError('File is too large (maximum 30 MB)');
+      return;
+    }
     setUploadError('');
     setUploading(true);
+    setUploadProgress(0);
+
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch('/api/brochure', { method: 'POST', body: fd });
-      if (!res.ok) {
-        const err = await res.json();
-        setUploadError(err.error || 'Upload failed');
-        return;
+      const CHUNK_SIZE = 2 * 1024 * 1024; // 2 MB per chunk
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      const uploadId = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+
+        const fd = new FormData();
+        fd.append('chunk', chunk);
+        fd.append('chunkIndex', String(i));
+        fd.append('totalChunks', String(totalChunks));
+        fd.append('uploadId', uploadId);
+        fd.append('filename', file.name);
+
+        const res = await fetch('/api/brochure/upload', {
+          method: 'POST',
+          body: fd,
+        });
+
+        if (!res.ok) {
+          let msg = `Upload failed (${res.status} ${res.statusText})`;
+          try {
+            const err = await res.json();
+            msg = err.error || msg;
+          } catch { /* ignored */ }
+          throw new Error(msg);
+        }
+
+        const pct = Math.min(99, Math.round(((i + 1) / totalChunks) * 100));
+        setUploadProgress(pct);
       }
+
+      setUploadProgress(100);
       setUploadedName(file.name);
       setUploadedAt(Date.now());
+    } catch (err: unknown) {
+      console.error('[config] brochure upload error:', err);
+      setUploadError((err as Error)?.message || 'Upload failed. Please check network connection.');
     } finally {
       setUploading(false);
+      setUploadProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
@@ -211,12 +249,23 @@ export default function ConfigUI({
                 }}
               >
                 <span>📤</span>
-                <span>{uploading ? 'Uploading…' : uploadedName ? 'Replace PDF Brochure' : 'Upload PDF Brochure'}</span>
+                <span>
+                  {uploading
+                    ? `Uploading… ${uploadProgress}%`
+                    : uploadedName
+                    ? 'Replace PDF Brochure'
+                    : 'Upload PDF Brochure'}
+                </span>
               </button>
 
               {uploadError && (
-                <div style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>
-                  {uploadError}
+                <div style={{
+                  fontSize: 12, color: '#f87171', marginTop: 8,
+                  padding: '8px 12px', borderRadius: 6,
+                  background: isDark ? 'rgba(239,68,68,0.1)' : '#fef2f2',
+                  border: `1px solid ${isDark ? 'rgba(239,68,68,0.3)' : '#fecaca'}`,
+                }}>
+                  ⚠️ {uploadError}
                 </div>
               )}
             </div>
