@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-import { saveBrochure } from '@/lib/redis';
+import { getDb, saveBrochure } from '@/lib/redis';
 import { uploadBrochureToDrive } from '@/lib/google';
 import { uploadMediaToWhatsApp } from '@/lib/whatsapp';
 
@@ -22,36 +20,65 @@ export async function POST(req: NextRequest) {
 
     const chunkIndex = parseInt(chunkIndexStr, 10);
     const totalChunks = parseInt(totalChunksStr, 10);
-
-    // Sanitize uploadId
     const safeUploadId = uploadId.replace(/[^a-zA-Z0-9_-]/g, '');
-    const tmpDir = '/tmp';
-    const partPath = path.join(tmpDir, `brochure_${safeUploadId}.part`);
 
     const chunkBuffer = Buffer.from(await chunk.arrayBuffer());
+    const db = await getDb();
 
-    if (chunkIndex === 0) {
-      fs.writeFileSync(partPath, chunkBuffer);
-    } else {
-      fs.appendFileSync(partPath, chunkBuffer);
-    }
+    // Store chunk in MongoDB (shared across all serverless lambda instances)
+    await db.collection('upload_chunks').updateOne(
+      { uploadId: safeUploadId, chunkIndex },
+      {
+        $set: {
+          uploadId: safeUploadId,
+          chunkIndex,
+          data: chunkBuffer.toString('base64'),
+          createdAt: Date.now(),
+        },
+      },
+      { upsert: true }
+    );
 
-    // If this is the last chunk, process the complete file
+    // If this is the last chunk, wait for all chunks and assemble
     if (chunkIndex === totalChunks - 1) {
-      if (!fs.existsSync(partPath)) {
-        return NextResponse.json({ error: 'Uploaded file missing from temporary storage' }, { status: 400 });
+      let docs = await db
+        .collection('upload_chunks')
+        .find({ uploadId: safeUploadId })
+        .sort({ chunkIndex: 1 })
+        .toArray();
+
+      // In case prior chunks are finishing in parallel, retry up to 3 seconds
+      let attempts = 0;
+      while (docs.length < totalChunks && attempts < 10) {
+        await new Promise((r) => setTimeout(r, 300));
+        docs = await db
+          .collection('upload_chunks')
+          .find({ uploadId: safeUploadId })
+          .sort({ chunkIndex: 1 })
+          .toArray();
+        attempts++;
       }
 
-      const fullBuffer = fs.readFileSync(partPath);
-      try { fs.unlinkSync(partPath); } catch { /* ignore */ }
+      if (docs.length < totalChunks) {
+        return NextResponse.json(
+          { error: `Upload incomplete: received ${docs.length} of ${totalChunks} parts. Please try again.` },
+          { status: 400 }
+        );
+      }
+
+      const buffers = docs.map((d) => Buffer.from(d.data as string, 'base64'));
+      const fullBuffer = Buffer.concat(buffers);
+
+      // Clean up temporary chunks in background
+      db.collection('upload_chunks').deleteMany({ uploadId: safeUploadId }).catch(() => null);
 
       if (fullBuffer.length === 0) {
         return NextResponse.json({ error: 'Uploaded file is empty' }, { status: 400 });
       }
 
-      console.log(`[brochure/upload] Full file assembled: ${filename} (${fullBuffer.length} bytes)`);
+      console.log(`[brochure/upload] Full file assembled via MongoDB chunks: ${filename} (${fullBuffer.length} bytes)`);
 
-      // 1. Upload to Google Drive (allows web users to preview/download large PDFs without serverless limits)
+      // 1. Upload to Google Drive (allows web preview of any size)
       let driveUrl: string | undefined;
       let driveFileId: string | undefined;
       try {
@@ -60,19 +87,19 @@ export async function POST(req: NextRequest) {
         driveFileId = driveRes.fileId;
         console.log(`[brochure/upload] Uploaded to Google Drive successfully: ${driveUrl}`);
       } catch (driveErr) {
-        console.warn('[brochure/upload] Google Drive upload failed (will continue):', driveErr);
+        console.warn('[brochure/upload] Google Drive upload fallback:', driveErr);
       }
 
-      // 2. Upload directly to WhatsApp Media API (gives media_id for instant, error-free WhatsApp delivery)
+      // 2. Upload directly to Meta WhatsApp Media API (gives official media_id for instant WhatsApp sending)
       let whatsappMediaId: string | undefined;
       try {
         whatsappMediaId = await uploadMediaToWhatsApp(fullBuffer, filename, 'application/pdf');
         console.log(`[brochure/upload] Uploaded to WhatsApp Media API successfully: ${whatsappMediaId}`);
       } catch (waErr) {
-        console.warn('[brochure/upload] WhatsApp Media upload failed (will retry dynamically):', waErr);
+        console.warn('[brochure/upload] WhatsApp Media API upload fallback:', waErr);
       }
 
-      // 3. Save brochure metadata in MongoDB
+      // 3. Save brochure in settings collection (immediately active for chats & students)
       await saveBrochure(fullBuffer, filename, {
         driveUrl,
         driveFileId,
@@ -91,7 +118,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, chunkReceived: chunkIndex + 1, totalChunks });
   } catch (err: unknown) {
-    console.error('[brochure/upload] Chunk upload error:', err);
+    console.error('[brochure/upload] Error:', err);
     return NextResponse.json({ error: (err as Error)?.message || 'Chunk upload failed' }, { status: 500 });
   }
 }

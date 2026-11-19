@@ -111,6 +111,7 @@ export default function ConfigUI({
       const CHUNK_SIZE = 2 * 1024 * 1024; // 2 MB per chunk
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
       const uploadId = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      let finalFilename = file.name;
 
       for (let i = 0; i < totalChunks; i++) {
         const start = i * CHUNK_SIZE;
@@ -138,12 +139,19 @@ export default function ConfigUI({
           throw new Error(msg);
         }
 
+        if (i === totalChunks - 1) {
+          try {
+            const data = await res.json();
+            if (data?.filename) finalFilename = data.filename;
+          } catch { /* ignored */ }
+        }
+
         const pct = Math.min(99, Math.round(((i + 1) / totalChunks) * 100));
         setUploadProgress(pct);
       }
 
       setUploadProgress(100);
-      setUploadedName(file.name);
+      setUploadedName(finalFilename);
       setUploadedAt(Date.now());
     } catch (err: unknown) {
       console.error('[config] brochure upload error:', err);
